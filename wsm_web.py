@@ -148,7 +148,8 @@ $("mRings").addEventListener("click",e=>{showRings=!showRings;e.target.classList
 $("mFit").addEventListener("click",()=>{mapKey=null;if(lastSp)drawMap(lastSp,lastSt)});
 async function load(){
  try{
-  const pv=$("per").value, all=pv==="0", hrs=all?24*3650:(+pv||24), per=all?"all time":"last "+hrs+" h";   // "all" = 10 years
+  const pv=$("per").value, all=pv==="0", hrs=all?24*3650:(+pv||24);   // "all" = 10 years
+  const per=all?"all time":$("per").selectedOptions[0].textContent;    // the label as shown in the selector ("last 7 days", not "last 168 h")
   const [st,sm,sp,sy]=await Promise.all([fetch("api/status").then(r=>r.json()),fetch("api/summary?hours="+hrs+($("noOwn").checked?"&noown=1":"")).then(r=>r.json()),fetch("api/spots?"+q()+"&limit=1000").then(r=>r.json()),fetch("api/system").then(r=>r.json()).catch(()=>({}))]);
   const s=st.station,m=st.map;
   $("who").innerHTML=esc(s.callsign)+" · "+(m?`<a href="${esc(m)}" target="_blank" rel="noopener">${esc(s.grid)}</a>`:esc(s.grid));
@@ -171,7 +172,7 @@ async function load(){
   cards+=`<div class="card"><div class="k">Spots</div><div class="v">${sm.spots}</div><div class="s">${per}</div></div>`;
   cards+=`<div class="card"><div class="k">Stations</div><div class="v">${sm.calls}</div><div class="s">different callsigns</div></div>`;
   const bd=sm.best;
-  cards+=`<div class="card"><div class="k">Best DX · ${all?"all":"last "+hrs+" h"}</div><div class="v">${bd?Math.round(bd.dist_km)+" km":"-"}</div><div class="s">${bd?esc(bd.call)+" · "+esc(bd.grid)+" · "+esc(bd.band):"no DX in this period"}</div></div>`;
+  cards+=`<div class="card"><div class="k">Best DX · ${all?"all":esc(per)}</div><div class="v">${bd?Math.round(bd.dist_km)+" km":"-"}</div><div class="s">${bd?esc(bd.call)+" · "+esc(bd.grid)+" · "+esc(bd.band):"no DX in this period"}</div></div>`;
   const ba=sm.best_all;
   cards+=`<div class="card"><div class="k">Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
   $("cards").innerHTML=cards;

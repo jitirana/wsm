@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8.1
+- Period labels on the page follow the selector ("last 7 days" instead of "last 168 h").
+
 ## 1.8 – "What is WSPR?"
 - Public, bilingual page `/about` (English by default, Portuguese button) explaining WSPR to visitors; live station numbers only
   for visitors with the web key. Link in the monitor header.
