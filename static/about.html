@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What is WSPR?</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#f4f1ec;--card:#fffdf9;--ink:#1d2430;--mute:#667085;--line:#e4ded3;--acc:#0b6b8a;--acc2:#b4541c;--ok:#1f7a3d;--chip:#efe9dd;--sig:#c0392b}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10151c;--card:#171e28;--ink:#e6eaf0;--mute:#9aa6b6;--line:#263041;--acc:#5ab8d8;--acc2:#e8945c;--ok:#53c27a;--chip:#222c3a;--sig:#f0746a}}
+:root[data-theme=dark]{--bg:#10151c;--card:#171e28;--ink:#e6eaf0;--mute:#9aa6b6;--line:#263041;--acc:#5ab8d8;--acc2:#e8945c;--ok:#53c27a;--chip:#222c3a;--sig:#f0746a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:18px 16px 60px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+header a.home{color:var(--acc);text-decoration:none;font-weight:600}
+.sp{flex:1}
+.lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.lang button{border:0;background:transparent;color:var(--mute);padding:5px 12px;font:inherit;font-size:14px;cursor:pointer}
+.lang button.on{background:var(--acc);color:#fff}
+html[data-lang=en] [lang=pt],html[data-lang=pt] [lang=en]{display:none}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.15;margin:18px 0 6px}
+h1 small{display:block;font-size:.45em;color:var(--mute);font-weight:500;margin-top:6px}
+h2{font-size:22px;margin:0 0 10px}
+.lead{font-size:18px;color:var(--mute);max-width:760px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:22px 0}
+.fact{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.fact b{display:block;font-size:26px;color:var(--acc)}
+.fact span{color:var(--mute);font-size:14px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0}
+section p{margin:8px 0}
+.num{display:inline-block;min-width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;text-align:center;font-weight:700;font-size:14px;line-height:26px;margin-right:8px}
+.msg{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.part{flex:1 1 200px;border:2px solid var(--line);border-radius:12px;padding:10px 14px}
+.part .v{font:700 26px/1.2 ui-monospace,Consolas,monospace}
+.part .k{font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+.part.c1{border-color:var(--acc)}.part.c2{border-color:var(--acc2)}.part.c3{border-color:var(--ok)}
+.part.c1 .v{color:var(--acc)}.part.c2 .v{color:var(--acc2)}.part.c3 .v{color:var(--ok)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+td.c{white-space:nowrap;font-family:ui-monospace,Consolas,monospace}
+.tw{overflow-x:auto}
+svg{max-width:100%;height:auto;display:block;margin:10px auto}
+svg text{fill:var(--ink);font-family:system-ui,sans-serif}
+svg .mute{fill:var(--mute)}
+.bar{display:grid;grid-template-columns:150px 1fr 70px;align-items:center;gap:10px;margin:6px 0;font-size:15px}
+.bar i{display:block;height:16px;border-radius:8px;background:var(--acc)}
+.bar.w i{background:var(--sig)}
+.bar em{font-style:normal;color:var(--mute);text-align:right;font-family:ui-monospace,Consolas,monospace}
+.note{color:var(--mute);font-size:14px}
+.live{display:none;border-color:var(--acc)}
+.live.on{display:block}
+.live .facts{margin:10px 0 0}
+a{color:var(--acc)}
+footer{color:var(--mute);font-size:14px;text-align:center;margin-top:26px}
+@media (max-width:560px){.bar{grid-template-columns:110px 1fr 58px}section{padding:14px}}
+</style>
+</head>
+<body><main>
+
+<header>
+ <a class="home" href="/">← <span lang="en">Live monitor</span><span lang="pt">Monitor ao vivo</span></a>
+ <span class="sp"></span>
+ <span class="lang" role="group" aria-label="language"><button id="bEn" type="button">EN</button><button id="bPt" type="button">PT</button></span>
+</header>
+
+<h1><span lang="en">What is WSPR?</span><span lang="pt">O que é o WSPR?</span>
+<small>Weak Signal Propagation Reporter · <span lang="en">pronounced “whisper”</span><span lang="pt">pronuncia-se “uísper”</span></small></h1>
+
+<p class="lead"><span lang="en">A radio “whisper” that crosses oceans. Amateur radio stations send tiny beacons of a few milliwatts;
+thousands of receivers around the world listen, decode them and report what they heard. Put together, the reports draw a live map of
+how radio waves are travelling around the planet right now.</span>
+<span lang="pt">Um “sussurro” de rádio que atravessa oceanos. Estações de radioamador transmitem pequenos sinais de poucos miliwatts;
+milhares de receptores pelo mundo escutam, decodificam e informam o que ouviram. Juntos, esses relatos desenham um mapa ao vivo
+de como as ondas de rádio estão viajando pelo planeta neste momento.</span></p>
+
+<div class="facts">
+ <div class="fact"><b>2 min</b><span lang="en">one message, every even minute</span><span lang="pt">uma mensagem, a cada minuto par</span></div>
+ <div class="fact"><b>50 bits</b><span lang="en">callsign + locator + power</span><span lang="pt">indicativo + locator + potência</span></div>
+ <div class="fact"><b>6 Hz</b><span lang="en">the whole signal is this narrow</span><span lang="pt">a largura do sinal inteiro</span></div>
+ <div class="fact"><b>−28 dB</b><span lang="en">decoded far below the noise</span><span lang="pt">lido muito abaixo do ruído</span></div>
+</div>
+
+<section class="live" id="live">
+ <h2><span lang="en">This station right now</span><span lang="pt">Esta estação agora</span></h2>
+ <div class="facts" id="liveFacts"></div>
+</section>
+
+<section>
+ <h2><span class="num">1</span><span lang="en">Who invented it, and why</span><span lang="pt">Quem inventou, e para quê</span></h2>
+ <p lang="en">WSPR was created in 2008 by <b>Joe Taylor, K1JT</b>, an American radio amateur who also won the 1993 Nobel Prize in Physics.
+ It is not made for conversation: a WSPR station only says “I am here, at this place, with this power”. The value is in the
+ answers. Every station that hears the beacon reports it to the <b>WSPRnet</b> database, so anyone can see, for each band and each
+ hour, which paths across the Earth are open and how strong they are.</p>
+ <p lang="pt">O WSPR foi criado em 2008 por <b>Joe Taylor, K1JT</b>, radioamador americano que também ganhou o Prêmio Nobel de Física de 1993.
+ Ele não serve para conversar: uma estação WSPR só diz “estou aqui, neste lugar, com esta potência”. O valor está nas respostas.
+ Cada estação que ouve o sinal informa ao banco de dados <b>WSPRnet</b>, e qualquer pessoa pode ver, para cada banda e cada hora,
+ quais caminhos pela Terra estão abertos e com que força.</p>
+</section>
+
+<section>
+ <h2><span class="num">2</span><span lang="en">What one message carries</span><span lang="pt">O que uma mensagem carrega</span></h2>
+ <p lang="en">Only three things, and always the same three. This is a real message from this station:</p>
+ <p lang="pt">Apenas três coisas, sempre as mesmas três. Esta é uma mensagem real desta estação:</p>
+ <div class="msg">
+  <div class="part c1"><div class="k"><span lang="en">Callsign</span><span lang="pt">Indicativo</span></div><div class="v">PU2TKN</div>
+   <div class="note"><span lang="en">who is transmitting (28 bits)</span><span lang="pt">quem está transmitindo (28 bits)</span></div></div>
+  <div class="part c2"><div class="k">Locator</div><div class="v">HI03</div>
+   <div class="note"><span lang="en">where: a map square about 200 × 100 km (15 bits)</span><span lang="pt">onde: um quadrado de cerca de 200 × 100 km (15 bits)</span></div></div>
+  <div class="part c3"><div class="k"><span lang="en">Power</span><span lang="pt">Potência</span></div><div class="v">0 dBm</div>
+   <div class="note"><span lang="en">how strong: 0 dBm = 1 milliwatt (7 bits)</span><span lang="pt">com que força: 0 dBm = 1 miliwatt (7 bits)</span></div></div>
+ </div>
+ <p lang="en">That is 50 bits in total, less information than this sentence. There is no free text: the message is kept tiny on purpose,
+ because the smaller the message, the weaker the signal that can still be read.</p>
+ <p lang="pt">São 50 bits no total, menos informação do que esta frase. Não há texto livre: a mensagem é minúscula de propósito,
+ porque quanto menor a mensagem, mais fraco pode ser o sinal que ainda se consegue ler.</p>
+ <div class="tw"><table>
+  <tr><th>dBm</th><th><span lang="en">Power</span><span lang="pt">Potência</span></th><th><span lang="en">Typical use</span><span lang="pt">Uso típico</span></th></tr>
+  <tr><td class="c">0</td><td>1 mW</td><td><span lang="en">tiny test beacon (like this station's)</span><span lang="pt">beacon de teste minúsculo (como o desta estação)</span></td></tr>
+  <tr><td class="c">23</td><td>200 mW</td><td><span lang="en">common WSPR beacon, heard on other continents</span><span lang="pt">beacon WSPR comum, ouvido em outros continentes</span></td></tr>
+  <tr><td class="c">30</td><td>1 W</td><td><span lang="en">strong WSPR beacon</span><span lang="pt">beacon WSPR forte</span></td></tr>
+  <tr><td class="c">37</td><td>5 W</td><td><span lang="en">e.g. ZS6EMS in South Africa, heard here 7,400 km away</span><span lang="pt">ex.: ZS6EMS, na África do Sul, ouvido aqui a 7.400 km</span></td></tr>
+ </table></div>
+</section>
+
+<section>
+ <h2><span class="num">3</span><span lang="en">How it is sent: four slow tones</span><span lang="pt">Como é enviado: quatro tons lentos</span></h2>
+ <p lang="en">The 50 bits are protected with an error-correcting code that adds redundancy, becoming <b>162 symbols</b>. Each symbol is one of
+ <b>four tones</b> only 1.46 Hz apart, held for 0.68 seconds. The whole message takes <b>110.6 seconds</b> and fits inside 6 Hz,
+ a sliver of the radio band. Every station starts at second 1 of an even minute, so receivers know exactly when to listen.</p>
+ <p lang="pt">Os 50 bits são protegidos por um código corretor de erros, que acrescenta redundância e os transforma em <b>162 símbolos</b>.
+ Cada símbolo é um de <b>quatro tons</b>, separados por apenas 1,46 Hz, mantido por 0,68 segundo. A mensagem inteira dura
+ <b>110,6 segundos</b> e cabe em 6 Hz, uma fatia minúscula da faixa de rádio. Todas as estações começam no segundo 1 de um minuto
+ par, e assim os receptores sabem exatamente quando escutar.</p>
+ <svg viewBox="0 0 990 250" role="img" aria-label="4-FSK tones over time">
+  <g stroke="var(--line)" stroke-width="1">
+   <line x1="80" y1="40" x2="860" y2="40"/><line x1="80" y1="80" x2="860" y2="80"/><line x1="80" y1="120" x2="860" y2="120"/><line x1="80" y1="160" x2="860" y2="160"/>
+  </g>
+  <g font-size="14" class="mute" text-anchor="end"><text x="70" y="45">tone 3</text><text x="70" y="85">tone 2</text><text x="70" y="125">tone 1</text><text x="70" y="165">tone 0</text></g>
+  <path fill="none" stroke="var(--sig)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"
+   d="M90,120 H130 V40 H170 V160 H210 V80 H250 V80 H290 V160 H330 V120 H370 V40 H410 V40 H450 V160 H490 V80 H530 V120 H570 V160 H610 V40 H650 V80 H690 V120 H730 V160 H770 V40 H810 V80 H850"/>
+  <line x1="80" y1="200" x2="860" y2="200" stroke="var(--mute)" stroke-width="1.5"/>
+  <g font-size="14" class="mute">
+   <text x="90" y="222">0 s</text><text x="470" y="222" text-anchor="middle">… 162 symbols × 0.68 s …</text><text x="860" y="222" text-anchor="end">110.6 s</text>
+  </g>
+  <g font-size="13" class="mute"><text x="872" y="64">1.46 Hz</text><text x="872" y="82">step</text></g>
+ </svg>
+ <p class="note"><span lang="en">Real tone sequence is longer (162 steps); the drawing shows the idea. On a waterfall display a WSPR signal looks like a thin, slightly wavy line about 2 minutes long.</span>
+ <span lang="pt">A sequência real é mais longa (162 degraus); o desenho mostra a ideia. Num waterfall, um sinal WSPR aparece como uma linha fina, levemente ondulada, de uns 2 minutos.</span></p>
+</section>
+
+<section>
+ <h2><span class="num">4</span><span lang="en">Why it goes so far with so little power</span><span lang="pt">Por que vai tão longe com tão pouca potência</span></h2>
+ <p lang="en">A normal receiver listens to 2,500 Hz of spectrum, full of noise. WSPR packs its energy into 6 Hz and listens for almost two minutes,
+ then the decoder searches for the known pattern and repairs errors. The result: a WSPR message can be read when it is
+ <b>about 600 times weaker than the noise</b> (−28 dB). Each 3 dB is worth doubling the power, so WSPR is worth thousands of times
+ more power than a voice signal.</p>
+ <p lang="pt">Um receptor comum escuta 2.500 Hz de espectro, cheios de ruído. O WSPR concentra a energia em 6 Hz e escuta por quase dois minutos;
+ depois, o decodificador procura o padrão conhecido e corrige os erros. Resultado: uma mensagem WSPR pode ser lida quando está
+ <b>cerca de 600 vezes mais fraca que o ruído</b> (−28 dB). Cada 3 dB equivalem a dobrar a potência, então o WSPR vale milhares de vezes
+ mais potência do que um sinal de voz.</p>
+ <p class="note"><span lang="en">Weakest signal each mode can still read (lower is better), in dB relative to the noise in 2,500 Hz:</span>
+ <span lang="pt">O sinal mais fraco que cada modo ainda consegue ler (quanto menor, melhor), em dB em relação ao ruído em 2.500 Hz:</span></p>
+ <div class="bar w"><span lang="en">Voice (SSB)</span><span lang="pt">Voz (SSB)</span><i style="width:8%"></i><em>+10 dB</em></div>
+ <div class="bar"><span lang="en">Morse code (by ear)</span><span lang="pt">Código Morse (de ouvido)</span><i style="width:58%"></i><em>−15 dB</em></div>
+ <div class="bar"><span>FT8</span><i style="width:73%"></i><em>−21 dB</em></div>
+ <div class="bar"><span>WSPR</span><i style="width:100%"></i><em>−28 dB</em></div>
+</section>
+
+<section>
+ <h2><span class="num">5</span><span lang="en">Propagation: which band, when</span><span lang="pt">Propagação: qual banda, e quando</span></h2>
+ <p lang="en">Short-wave signals travel far by bouncing off the <b>ionosphere</b>, layers of the upper atmosphere electrified by the Sun.
+ Because the Sun changes the ionosphere through the day, each band has its time: higher bands open with daylight, lower bands
+ come alive at night. Around sunrise and sunset (the <b>grey line</b>) long paths often open for a short while.</p>
+ <p lang="pt">Os sinais de ondas curtas vão longe porque refletem na <b>ionosfera</b>, camadas da alta atmosfera eletrizadas pelo Sol.
+ Como o Sol muda a ionosfera ao longo do dia, cada banda tem a sua hora: as bandas altas abrem com a luz do dia, e as baixas
+ ganham vida à noite. Perto do nascer e do pôr do sol (a <b>linha cinza</b>), caminhos longos costumam abrir por um tempo curto.</p>
+ <svg viewBox="0 0 900 190" role="img" aria-label="ionospheric skip">
+  <path d="M20,170 Q450,120 880,170" fill="none" stroke="var(--line)" stroke-width="3"/>
+  <path d="M40,70 Q450,10 860,70" fill="none" stroke="var(--acc)" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="450" y="22" text-anchor="middle" font-size="14" class="mute">ionosphere / ionosfera</text>
+  <polyline points="80,165 250,47 420,146 590,44 760,155" fill="none" stroke="var(--sig)" stroke-width="3"/>
+  <circle cx="80" cy="165" r="7" fill="var(--sig)"/><circle cx="760" cy="155" r="7" fill="var(--ok)"/>
+  <text x="80" y="188" text-anchor="middle" font-size="14">TX</text><text x="760" y="182" text-anchor="middle" font-size="14">RX</text>
+ </svg>
+ <div class="tw"><table>
+  <tr><th><span lang="en">Band</span><span lang="pt">Banda</span></th><th><span lang="en">Best time</span><span lang="pt">Melhor horário</span></th><th><span lang="en">Typical reach</span><span lang="pt">Alcance típico</span></th></tr>
+  <tr><td class="c">80 m</td><td><span lang="en">night</span><span lang="pt">noite</span></td><td><span lang="en">regional, continental at night</span><span lang="pt">regional; continental à noite</span></td></tr>
+  <tr><td class="c">40 m</td><td><span lang="en">evening and night</span><span lang="pt">fim de tarde e noite</span></td><td><span lang="en">regional by day, intercontinental at night</span><span lang="pt">regional de dia, intercontinental à noite</span></td></tr>
+  <tr><td class="c">30 m</td><td><span lang="en">day and night</span><span lang="pt">dia e noite</span></td><td><span lang="en">a reliable all-rounder</span><span lang="pt">uma banda confiável a qualquer hora</span></td></tr>
+  <tr><td class="c">20 m</td><td><span lang="en">daytime</span><span lang="pt">durante o dia</span></td><td><span lang="en">the classic long-distance band</span><span lang="pt">a banda clássica de longa distância</span></td></tr>
+  <tr><td class="c">17–10 m</td><td><span lang="en">daytime, depends on the solar cycle</span><span lang="pt">de dia; depende do ciclo solar</span></td><td><span lang="en">very far when open, silent when closed</span><span lang="pt">muito longe quando abre; silêncio quando fecha</span></td></tr>
+ </table></div>
+</section>
+
+<section>
+ <h2><span class="num">6</span><span lang="en">How this station works</span><span lang="pt">Como esta estação funciona</span></h2>
+ <svg viewBox="0 0 900 170" role="img" aria-label="station chain">
+  <g font-size="15" text-anchor="middle">
+   <rect x="10" y="40" width="140" height="70" rx="12" fill="none" stroke="var(--acc2)" stroke-width="2"/><text x="80" y="72">Antenna</text><text x="80" y="94" font-size="12" class="mute">HF wire</text>
+   <rect x="190" y="40" width="140" height="70" rx="12" fill="none" stroke="var(--acc2)" stroke-width="2"/><text x="260" y="72">SDRplay RSP2</text><text x="260" y="94" font-size="12" class="mute">radio receiver</text>
+   <rect x="370" y="40" width="160" height="70" rx="12" fill="none" stroke="var(--acc)" stroke-width="2"/><text x="450" y="66">Raspberry Pi</text><text x="450" y="86" font-size="12" class="mute">capture → 375 S/s</text><text x="450" y="101" font-size="12" class="mute">WSPR decoder</text>
+   <rect x="570" y="40" width="140" height="70" rx="12" fill="none" stroke="var(--acc)" stroke-width="2"/><text x="640" y="72">WSM</text><text x="640" y="94" font-size="12" class="mute">database · web page</text>
+   <rect x="750" y="40" width="140" height="70" rx="12" fill="none" stroke="var(--ok)" stroke-width="2"/><text x="820" y="72">WSPRnet</text><text x="820" y="94" font-size="12" class="mute">world map</text>
+  </g>
+  <g stroke="var(--mute)" stroke-width="2" fill="var(--mute)">
+   <line x1="150" y1="75" x2="182" y2="75"/><path d="M182,69 L190,75 L182,81Z"/>
+   <line x1="330" y1="75" x2="362" y2="75"/><path d="M362,69 L370,75 L362,81Z"/>
+   <line x1="530" y1="75" x2="562" y2="75"/><path d="M562,69 L570,75 L562,81Z"/>
+   <line x1="710" y1="75" x2="742" y2="75"/><path d="M742,69 L750,75 L742,81Z"/>
+  </g>
+  <text x="450" y="150" text-anchor="middle" font-size="13" class="mute">every 2 minutes · a cada 2 minutos</text>
+ </svg>
+ <p lang="en">Every two minutes the receiver records one band for 116 seconds, the Raspberry Pi turns the recording into the exact format the
+ decoder expects and runs the WSPR decoder. Each station found is saved, shown on the live monitor and reported to WSPRnet.
+ The monitor changes band through the day (day bands by daylight, night bands after sunset).</p>
+ <p lang="pt">A cada dois minutos o receptor grava uma banda por 116 segundos; o Raspberry Pi transforma a gravação no formato exato que o
+ decodificador espera e executa o decodificador WSPR. Cada estação encontrada é guardada, aparece no monitor ao vivo e é informada
+ ao WSPRnet. O monitor troca de banda ao longo do dia (bandas de dia com a luz do sol, bandas da noite depois do pôr do sol).</p>
+</section>
+
+<section>
+ <h2><span class="num">7</span><span lang="en">Reading the live monitor</span><span lang="pt">Como ler o monitor ao vivo</span></h2>
+ <div class="tw"><table>
+  <tr><th><span lang="en">Column</span><span lang="pt">Coluna</span></th><th><span lang="en">Meaning</span><span lang="pt">Significado</span></th></tr>
+  <tr><td class="c">Time (UTC)</td><td><span lang="en">start of the 2-minute slot, in universal time (Brazil = UTC − 3 h)</span><span lang="pt">início do slot de 2 minutos, em horário universal (Brasil = UTC − 3 h)</span></td></tr>
+  <tr><td class="c">Band / Freq</td><td><span lang="en">the band, and the exact frequency the station was heard on</span><span lang="pt">a banda, e a frequência exata em que a estação foi ouvida</span></td></tr>
+  <tr><td class="c">SNR</td><td><span lang="en">signal-to-noise ratio in dB. −21 means the signal arrived about 125 times weaker than the noise, and was still read</span><span lang="pt">relação sinal/ruído em dB. −21 significa que o sinal chegou cerca de 125 vezes mais fraco que o ruído, e mesmo assim foi lido</span></td></tr>
+  <tr><td class="c">DT</td><td><span lang="en">timing: seconds late (+) or early (−) against the expected start. Normally between −1 and +2</span><span lang="pt">tempo: segundos de atraso (+) ou adiantamento (−) em relação ao início esperado. Normalmente entre −1 e +2</span></td></tr>
+  <tr><td class="c">Drift</td><td><span lang="en">how much the transmitter frequency slid during the message, in Hz per minute (0 = very stable)</span><span lang="pt">quanto a frequência do transmissor escorregou durante a mensagem, em Hz por minuto (0 = muito estável)</span></td></tr>
+  <tr><td class="c">Call / Locator</td><td><span lang="en">who transmitted and from which map square (the link opens the square on a map)</span><span lang="pt">quem transmitiu e de qual quadrado do mapa (o link abre o quadrado num mapa)</span></td></tr>
+  <tr><td class="c">Power</td><td><span lang="en">the power the station declares, in dBm (see the table above)</span><span lang="pt">a potência que a estação declara, em dBm (veja a tabela acima)</span></td></tr>
+  <tr><td class="c">Dist / Brg</td><td><span lang="en">distance in km and compass bearing from this station</span><span lang="pt">distância em km e direção (rumo) a partir desta estação</span></td></tr>
+ </table></div>
+</section>
+
+<section>
+ <h2><span lang="en">Explore more</span><span lang="pt">Para explorar mais</span></h2>
+ <p><a href="https://www.wsprnet.org" target="_blank" rel="noopener">WSPRnet</a> ·
+ <a href="https://wspr.rocks" target="_blank" rel="noopener">WSPR Rocks</a> ·
+ <a href="https://wspr.live" target="_blank" rel="noopener">wspr.live</a> ·
+ <a href="https://wsjt.sourceforge.io" target="_blank" rel="noopener">WSJT-X (K1JT)</a></p>
+</section>
+
+<footer>PU2TKN · HI03 · WSM – WSPR System Monitor</footer>
+</main>
+<script>
+(function(){
+ var root=document.documentElement;
+ function setLang(l){root.dataset.lang=l;root.lang=l==="pt"?"pt-BR":"en";
+  document.title=l==="pt"?"O que é o WSPR?":"What is WSPR?";
+  document.getElementById("bEn").classList.toggle("on",l==="en");document.getElementById("bPt").classList.toggle("on",l==="pt");
+  try{localStorage.setItem("wsm_lang",l)}catch(e){}}
+ var p=new URLSearchParams(location.search).get("lang"),saved=null;
+ try{saved=localStorage.getItem("wsm_lang")}catch(e){}
+ try{var t=localStorage.getItem("wsm_theme");if(t)root.dataset.theme=t}catch(e){}
+ setLang(p==="pt"||p==="en"?p:(saved==="pt"?"pt":"en"));
+ document.getElementById("bEn").onclick=function(){setLang("en")};
+ document.getElementById("bPt").onclick=function(){setLang("pt")};
+ // live numbers: only for visitors who may read the monitor (the API answers 401 otherwise and the box stays hidden)
+ function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+ fetch("/api/summary?hours=24&noown=1").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(s){
+  var b=s.best_all,h="";
+  h+='<div class="fact"><b>'+s.spots+'</b><span lang="en">spots in 24 h</span><span lang="pt">spots em 24 h</span></div>';
+  h+='<div class="fact"><b>'+s.calls+'</b><span lang="en">stations in 24 h</span><span lang="pt">estações em 24 h</span></div>';
+  if(b)h+='<div class="fact"><b>'+Math.round(b.dist_km).toLocaleString()+' km</b><span lang="en">best DX ever: </span><span lang="pt">melhor DX: </span><span>'+esc(b.call)+' ('+esc(b.band)+')</span></div>';
+  document.getElementById("liveFacts").innerHTML=h;document.getElementById("live").classList.add("on");
+ }).catch(function(){});
+})();
+</script>
+</body>
+</html>

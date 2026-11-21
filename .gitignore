@@ -1,0 +1,24 @@
+# local configuration: contains secrets (web token, ntfy topic, heartbeat URL)
+wsm.yaml
+*.passphrase
+
+# runtime data: database, state files, backups, debug recordings
+data/
+
+# build output of the decoder
+decoder/*.o
+decoder/wsprd/*.o
+decoder/wsm_decode
+decoder/wsm_symbols
+
+# Python / editors
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.swp
+.DS_Store
+
+# development captures
+*.npz
+*.iq

@@ -1,0 +1,36 @@
+# wsm.yaml - WSM configuration (copy to ~/wsm/wsm.yaml). Every key is optional; these are the defaults.
+# Full reference: docs/CONFIGURATION.md
+station:
+  callsign: PU2TKN
+  grid: HI03
+
+data_dir: ~/wsm/data            # SQLite database (wsm.sqlite) and decoder scratch files
+keep_days: 0                    # 0 = keep every spot forever
+store_own_spots: no             # no = your own callsign (TX = RX) is not stored; its SNR/DT still appear in the log
+debug_keep_iq: 0                # N > 0: keep the last N decoder input files in data/debug/ (45000 IQ samples, ~360 kB each)
+
+web:
+  enabled: true
+  host: 127.0.0.1               # keep it local; publish it with a tunnel (e.g. cloudflared)
+  port: 8091
+  token: ""                     # if set, open  http://host:port/?key=TOKEN  once (a cookie remembers it). Do not share it.
+
+radios:
+  - name: rsp2
+    driver: sdrplay
+    sample_rate: 62500          # S/s asked from the driver (any value >= 31250 works)
+    if_bandwidth: 200000
+    offset_hz: 10000            # tune this far above dial+1500 Hz and shift back in software (avoids the DC spike)
+    antenna: A                  # A / B / HIZ.  A and B are 50 ohm (dipole + balun/choke here), HIZ is 1 kohm for long wires
+    gain_db: 30                 # AGC is off. Keep "Input level (peak)" on the page below ~50 %, never above 90 %
+    clock_offset_s: 0.0         # calibrate with the GPS-timed TX (see README); DT of PU2TKN should read +1.0 s
+    rotation: [20m, 40m, 30m, 10m]   # one 2-minute slot per entry; repeat a band to give it more time: [20m, 40m, 20m, 30m, 10m]
+    # schedule:                 # optional: rotation by time of day, UTC ranges (HH or HH:MM; "21-09" wraps over midnight).
+    #   "09-21": [20m, 20m, 17m, 10m]      # day
+    #   "21-09": [40m, 30m, 40m, 80m]      # night   (outside every range the plain `rotation` above is used)
+    bands:                      # per-band overrides
+      # 40m: {gain_db: 25}
+      # 10m: {gain_db: 35}
+
+# Test with the PU2TKN transmitter (it sends in every even-minute slot): listen to 20 m only
+#   rotation: [20m]

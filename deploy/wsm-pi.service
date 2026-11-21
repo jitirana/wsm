@@ -1,0 +1,26 @@
+# /etc/systemd/system/wsm.service  (Raspberry Pi version; install_pi.sh fills in @USER@, @HOME@ and @SDRPLAY@)
+# Starts only after the clock is synchronised (a WSPR slot needs the clock within ~1 s).
+# The ExecStartPre line is the 2nd self-heal step of wsm_health.py: when data/.restart_sdrplay exists the SDRplay API
+# service is restarted (as root, "+" prefix) before WSM starts again.
+[Unit]
+Description=WSM - WSPR System Monitor
+After=network-online.target time-sync.target @SDRPLAY@.service
+Wants=network-online.target time-sync.target @SDRPLAY@.service
+Conflicts=sbm.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@HOME@/wsm
+ExecStartPre=+/bin/sh -c 'f=@HOME@/wsm/data/.restart_sdrplay; if [ -e "$f" ]; then rm -f "$f"; systemctl restart @SDRPLAY@.service; sleep 5; fi'
+ExecStart=@HOME@/wsm/run_wsm.sh -c @HOME@/wsm/wsm.yaml
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=15
+# Pi 3B (1 GB): a slot needs ~250 MB at most; above this something is wrong -> killed and restarted, the rest of the Pi is safe
+MemoryMax=450M
+
+[Install]
+WantedBy=multi-user.target
