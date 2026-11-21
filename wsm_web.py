@@ -26,6 +26,15 @@ header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bott
 h1{font-size:22px;margin:0}h1 small{font-weight:400;color:var(--mute);font-size:14px;margin-left:6px}
 a{color:var(--acc)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+#wfBox{display:grid;grid-template-columns:34px 1fr;grid-template-rows:auto auto;gap:0 6px}
+#wfTime{grid-row:1;grid-column:1;height:340px;position:relative;font-size:12px;color:var(--mute)}#wfTime span{position:absolute;right:0;transform:translateY(-50%)}
+#wfImgW{grid-row:1;grid-column:2;position:relative;border-radius:8px;overflow:hidden;background:#080c28}
+#wfImg{display:block;width:100%;height:340px;image-rendering:auto}
+#wfLabels span{position:absolute;transform:translateX(-50%);white-space:nowrap;font:600 12px/1.2 system-ui;color:#fff;background:rgba(0,0,0,.55);
+ border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:1px 5px;pointer-events:none}
+#wfLabels span.own{border-style:dashed;opacity:.8}
+#wfAxis{grid-row:2;grid-column:2;position:relative;height:30px;font-size:12px;color:var(--mute)}#wfAxis span{position:absolute;top:3px;white-space:nowrap;transform:translateX(-50%)}
+#wfTabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .chk{display:inline-flex;align-items:center;gap:5px;color:var(--mute);font-size:14px;cursor:pointer;user-select:none}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .card .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -60,6 +69,11 @@ tr:hover td{background:color-mix(in srgb,var(--chip) 60%,transparent)}
 <header><h1>WSM <small>WSPR System Monitor</small></h1><span id="who" class="mute"></span>
 <span style="flex:1"></span><a href="/about" style="color:var(--acc);text-decoration:none;font-weight:600;margin-right:12px">What is WSPR?</a><span id="upd" class="mute"></span></header>
 <div class="cards" id="cards"></div>
+<div class="panel" id="wfP" style="display:none"><h2>Last slot · waterfall <span id="wfInfo"></span></h2>
+<div class="tools" id="wfTabs"></div>
+<div id="wfBox"><div id="wfTime"></div><div id="wfImgW"><img id="wfImg" alt="waterfall of the last slot"><div id="wfLabels"></div></div><div id="wfAxis"></div></div>
+<p class="note">What the receiver heard in the last 2-minute slot of the band: frequency across (the 200 Hz WSPR window), time downwards.
+Each WSPR station is a thin vertical trace about 110 s long; the decoded ones are labelled with their callsign and SNR. Brighter = stronger.</p></div>
 <div class="panel" id="bandsP"><h2>Bands <span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
 <div class="panel" id="mapP"><h2>Map <span id="mapInfo"></span></h2>
 <div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
@@ -146,6 +160,29 @@ function drawMap(spots,st){
 $("mLines").addEventListener("click",e=>{showLines=!showLines;e.target.classList.toggle("on",showLines);if(lastSp)drawMap(lastSp,lastSt)});
 $("mRings").addEventListener("click",e=>{showRings=!showRings;e.target.classList.toggle("on",showRings);if(lastSp)drawMap(lastSp,lastSt)});
 $("mFit").addEventListener("click",()=>{mapKey=null;if(lastSp)drawMap(lastSp,lastSt)});
+// ---- waterfall of the last slot of each band ----
+let wfBand=null,wfShown=null;
+async function loadWf(){
+ let d;try{d=await fetch("api/waterfall").then(r=>r.json())}catch(e){return}
+ const bands=Object.keys(d.bands||{}).sort((a,b)=>BANDS_ORDER.indexOf(a)-BANDS_ORDER.indexOf(b));
+ if(!bands.length){$("wfP").style.display="none";return}
+ $("wfP").style.display="";
+ if(!wfBand||!d.bands[wfBand])wfBand=bands.reduce((a,b)=>d.bands[b].ts>d.bands[a].ts?b:a);   // default: the newest slot
+ $("wfTabs").innerHTML=bands.map(b=>`<button data-b="${esc(b)}" class="${b===wfBand?"on":""}">${esc(b)} · ${fmtT(d.bands[b].ts).slice(11)}Z</button>`).join("");
+ for(const el of $("wfTabs").querySelectorAll("button"))el.onclick=()=>{wfBand=el.dataset.b;wfShown=null;loadWf()};
+ const w=d.bands[wfBand],key=wfBand+w.ts;
+ if(key!==wfShown){$("wfImg").src="api/waterfall.png?band="+encodeURIComponent(wfBand)+"&ts="+w.ts;wfShown=key}
+ const span=w.f_hi-w.f_lo,rf=(w.dial+1500)/1e6;
+ $("wfInfo").textContent=`${w.band} · ${fmtT(w.ts)} UTC · ${w.decodes.length} decoded · coverage ${w.coverage} %`;
+ // callsign labels at the start of each trace (WSPR starts ~1 s + DT after the even minute)
+ $("wfLabels").innerHTML=w.decodes.map(x=>{const left=(x.off_hz-w.f_lo)/span*100,t=1+(x.dt||0)+3,top=Math.max(0,Math.min(92,(t-w.t0)/w.dt/w.rows*100));
+  return `<span class="${x.own?"own":""}" style="left:${left.toFixed(2)}%;top:${top.toFixed(1)}%">${esc(x.call)} ${x.snr} dB</span>`}).join("");
+ // frequency axis: every 50 Hz, labels as audio offset and the real frequency at the centre
+ let ax="";for(let f=-150;f<=150;f+=50){const l=(f-w.f_lo)/span*100;const tx=f<=-150?"0":(f>=150?"-100%":"-50%");ax+=`<span style="left:${l}%;transform:translateX(${tx})">${f===0?rf.toFixed(4)+" MHz":(f>0?"+":"")+f+" Hz"}</span>`}
+ $("wfAxis").innerHTML=ax;
+ let tm="";for(const t of [0,30,60,90,120]){const r=Math.max(0,Math.min(100,(t-w.t0)/w.dt/w.rows*100));tm+=`<span style="top:${r}%">${t}s</span>`}
+ $("wfTime").innerHTML=tm;
+}
 async function load(){
  try{
   const pv=$("per").value, all=pv==="0", hrs=all?24*3650:(+pv||24);   // "all" = 10 years
@@ -176,6 +213,7 @@ async function load(){
   const ba=sm.best_all;
   cards+=`<div class="card"><div class="k">Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
   $("cards").innerHTML=cards;
+  loadWf();
   let h="<thead><tr><th>Band</th><th>Slots</th><th>Spots</th><th>Stations</th><th>Last slot</th></tr></thead><tbody>";
   for(const b of sm.bands)h+=`<tr><td>${esc(b.band)}</td><td>${b.slots}</td><td>${b.spots}</td><td>${b.calls}</td><td>${ago(b.last_ts)} ago</td></tr>`;
   $("bands").innerHTML=h+"</tbody>";
@@ -349,6 +387,14 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/summary":
                 hours = num("hours", 24, 1, 24 * 3650)
                 return self._json(db.summary(time.time() - hours * 3600, st.cfg["station"]["callsign"], hide_own=noown))
+            if p == "/api/waterfall":                                # last waterfall of each band: metadata + decodes
+                wfs = getattr(st, "waterfalls", None) or {}
+                return self._json(dict(bands={b: {k: v for k, v in w.items() if k != "png"} for b, w in list(wfs.items())}))
+            if p == "/api/waterfall.png":
+                w = (getattr(st, "waterfalls", None) or {}).get((q.get("band") or [""])[0])
+                if not w:
+                    return self._send(404, "no waterfall for this band yet", "text/plain; charset=utf-8")
+                return self._send(200, w["png"], "image/png", {"Cache-Control": "no-cache"})
             if p == "/api/system":
                 sm = getattr(st, "sysmon", None)
                 return self._json(sm.snapshot() if sm else {})

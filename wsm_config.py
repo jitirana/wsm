@@ -18,6 +18,7 @@ DEFAULTS = dict(
     web=dict(enabled=True, host="127.0.0.1", port=8091, token=""),
     keep_days=0,                           # 0 = keep every spot
     store_own_spots=False,                 # False: spots of the station's own callsign (TX = RX) are not stored
+    waterfall=True,                        # picture of the last slot of each band (RAM only)
     radios=[dict(
         name="rsp2", driver="sdrplay",
         sample_rate=62500,                 # S/s requested from the driver (decimated by the RSP itself); anything >= 31250 works

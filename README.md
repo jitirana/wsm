@@ -16,6 +16,8 @@ Station PU2TKN, grid HI03 (north-east Brazil).
   scratch files in RAM (`/dev/shm`) so the SD card is spared.
 - **Web page** – receiver state, input level, system health, spots, stations, best DX (period and all-time), band table,
   Leaflet map with great-circle lines, spot list with filters and CSV export, light/dark theme. Read-only, protected by a key.
+- **Waterfall** – a picture of the last 2-minute slot of each band (frequency across, time downwards) with the decoded
+  callsigns drawn on their traces, so you can see what the decoder saw, including signals too weak to decode.
 - **"What is WSPR?"** – a public, bilingual (English / Portuguese) page at `/about` that explains the mode to visitors.
 - **WSPRnet upload** – the same HTTP report WSJT-X uses; your own transmitter is never reported.
 - **Health monitor and self-healing** – radio stall/hang detection with automatic restarts, plus alerts for under-voltage,
@@ -54,6 +56,7 @@ The web page listens on `http://127.0.0.1:8091/` (local only); publish it with a
 | `wsm_service.py` | main program: band scheduler, capture, decode, database, web, health |
 | `wsm_capture.py` | radio drivers: `RspRadio` (SoapySDR / SDRplay) and `SimRadio` (simulation for tests) |
 | `wsm_dsp.py` | stream → 375 S/s complex baseband on the UTC grid, block by block |
+| `wsm_waterfall.py` | waterfall picture (PNG, numpy only) of the last slot of each band |
 | `decoder/` | `wsm_decode` and `wsm_symbols` (C, GPL-3.0, from rtlsdr-wsprd / WSJT-X) |
 | `wsm_db.py`, `wsm_geo.py` | SQLite storage; locator → position, distance, bearing |
 | `wsm_web.py`, `static/` | web page, JSON/CSV API, the `/about` page |
@@ -66,7 +69,8 @@ The web page listens on `http://127.0.0.1:8091/` (local only); publish it with a
 ## API
 
 `/api/status`, `/api/summary?hours=24[&noown=1]`, `/api/spots?since=EPOCH&band=20m&call=PY*&limit=500[&noown=1]`,
-`/api/slots`, `/api/system`, `/spots.csv`. All need the web key except `/about`.
+`/api/slots`, `/api/system`, `/api/waterfall` (last slot per band, decodes with their offset in Hz),
+`/api/waterfall.png?band=20m`, `/spots.csv`. All need the web key except `/about`.
 
 ## Credits and license
 

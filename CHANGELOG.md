@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9 – Waterfall
+- "Last slot · waterfall" panel: frequency across (±150 Hz around dial + 1500 Hz), time downwards, one tab per band, the
+  decoded callsigns with their SNR drawn on their traces (own TX dashed). Made from the decoder input, kept in RAM only.
+- `/api/waterfall` and `/api/waterfall.png?band=`; option `waterfall` (default `yes`).
+- The "What is WSPR?" page shows a real slot of this station to visitors who have the web key.
+
 ## 1.8.1
 - Period labels on the page follow the selector ("last 7 days" instead of "last 168 h").
 

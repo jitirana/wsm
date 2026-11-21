@@ -20,6 +20,7 @@ data_dir: ~/wsm/data        # SQLite database (wsm.sqlite), state files, backups
 keep_days: 0                # delete spots older than N days; 0 = keep everything
 store_own_spots: no         # no: spots of your own callsign (TX = RX) are not stored; their SNR/DT still go to the log
 debug_keep_iq: 0            # N > 0: keep the decoder input of the last N slots in data/debug/ (~360 kB each, for diagnosis)
+waterfall: yes              # keep a waterfall picture of the last slot of each band (RAM only, ~130 kB per band)
 decode_process: yes         # decode in a separate low-priority process (recommended on a Raspberry Pi)
 allow_with_sbm: no          # WSM refuses to start while sbm.service (another program using the RSP2) runs
 

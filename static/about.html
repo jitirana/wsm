@@ -146,6 +146,10 @@ de como as ondas de rádio estão viajando pelo planeta neste momento.</span></p
   </g>
   <g font-size="13" class="mute"><text x="872" y="64">1.46 Hz</text><text x="872" y="82">step</text></g>
  </svg>
+ <figure id="wfFig" style="display:none;margin:14px 0 4px">
+  <img id="wfFigImg" alt="waterfall" style="width:100%;height:260px;border-radius:10px;display:block;background:#080c28">
+  <figcaption class="note" id="wfFigCap"></figcaption>
+ </figure>
  <p class="note"><span lang="en">Real tone sequence is longer (162 steps); the drawing shows the idea. On a waterfall display a WSPR signal looks like a thin, slightly wavy line about 2 minutes long.</span>
  <span lang="pt">A sequência real é mais longa (162 degraus); o desenho mostra a ideia. Num waterfall, um sinal WSPR aparece como uma linha fina, levemente ondulada, de uns 2 minutos.</span></p>
 </section>
@@ -266,6 +270,16 @@ de como as ondas de rádio estão viajando pelo planeta neste momento.</span></p
   h+='<div class="fact"><b>'+s.calls+'</b><span lang="en">stations in 24 h</span><span lang="pt">estações em 24 h</span></div>';
   if(b)h+='<div class="fact"><b>'+Math.round(b.dist_km).toLocaleString()+' km</b><span lang="en">best DX ever: </span><span lang="pt">melhor DX: </span><span>'+esc(b.call)+' ('+esc(b.band)+')</span></div>';
   document.getElementById("liveFacts").innerHTML=h;document.getElementById("live").classList.add("on");
+ }).catch(function(){});
+ // a real slot of this station (only for visitors with the web key): the band with the most decoded stations
+ fetch("/api/waterfall").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){
+  var best=null;for(var b in d.bands){var w=d.bands[b];if(!best||w.decodes.length>best.decodes.length||(w.decodes.length===best.decodes.length&&w.ts>best.ts))best=w}
+  if(!best)return;
+  document.getElementById("wfFigImg").src="/api/waterfall.png?band="+encodeURIComponent(best.band)+"&ts="+best.ts;
+  var t=new Date(best.ts*1000).toISOString().slice(11,16),calls=best.decodes.map(function(x){return x.call}).join(", ");
+  document.getElementById("wfFigCap").innerHTML='<span lang="en">A real 2-minute slot heard by this station: '+esc(best.band)+', '+t+' UTC. Frequency across, time downwards; each thin vertical trace is a WSPR station'+(calls?' (decoded: '+esc(calls)+')':'')+'.</span>'
+   +'<span lang="pt">Um slot real de 2 minutos ouvido por esta estação: '+esc(best.band)+', '+t+' UTC. Frequência na horizontal, tempo para baixo; cada risco vertical fino é uma estação WSPR'+(calls?' (decodificadas: '+esc(calls)+')':'')+'.</span>';
+  document.getElementById("wfFig").style.display="";
  }).catch(function(){});
 })();
 </script>
