@@ -96,10 +96,6 @@ body.pub #csv{display:none}body.pub #pubTag{display:inline-block}
 <p class="note">What the receiver heard in the last 2-minute slot of the band: frequency across (the 200 Hz WSPR window), time downwards.
 Each WSPR station is a thin vertical trace about 110 s long; the decoded ones are labelled with their callsign and SNR. Brighter = stronger.</p></div>
 <div class="panel" id="bandsP"><h2><b class="ht">Bands<button class="hq" data-h="bands" aria-label="explain">?</button></b><span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
-<div class="panel" id="histP" style="display:none"><h2><b class="ht">Health history<button class="hq" data-h="hist" aria-label="explain">?</button></b><span id="histInfo"></span></h2>
-<div class="tools"><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
-<div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cLvl"></div></div>
-<p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 <div class="panel" id="mapP"><h2><b class="ht">Map<button class="hq" data-h="map" aria-label="explain">?</button></b><span id="mapInfo"></span></h2>
 <div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mNight" class="on" title="shade the part of the Earth where it is night now">night</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
 <div id="map"></div>
@@ -117,6 +113,10 @@ coloured by band; tap a dot for the details. Shaded = night now, the sun symbol 
 <p class="note">Times are UTC (the title shows your local time). SNR is in dB for a 2500 Hz bandwidth. DT: seconds late (+) or early (-) against the nominal start,
 1 s after the even minute. The locator link opens Google Maps at the centre of the locator square (WSPR sends 4 characters: about +-100 km).
 Distance and bearing are from the station locator.</p></div>
+<div class="panel" id="histP" style="display:none"><h2><b class="ht">Health history<button class="hq" data-h="hist" aria-label="explain">?</button></b><span id="histInfo"></span></h2>
+<div class="tools"><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
+<div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cLvl"></div></div>
+<p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 </main>
 <div id="tip" role="tooltip" hidden></div>
 <script src="static/leaflet.js"></script>
@@ -291,10 +291,12 @@ function drawHist(){
  $("histP").style.display="";
  const temps=sy.map(r=>r.temp_c).filter(v=>v!=null);
  $("histInfo").textContent=temps.length?`temperature ${Math.min(...temps).toFixed(0)}–${Math.max(...sy.map(r=>r.temp_max??r.temp_c)).toFixed(0)} °C`:"";
+ const wait=t=>`<h3>${t}</h3><p class="mute" style="height:150px;margin:0;padding-top:50px;text-align:center">collecting data: the first point appears 5 minutes after WSM starts</p>`;
+ if(!sy.length){$("cTemp").innerHTML=wait("CPU temperature");$("cClk").innerHTML=wait("CPU clock (lowest)")}else{
  chart("cTemp","CPU temperature","°C",[{pts:sy.map(r=>[r.ts,r.temp_c]),color:"#e0702a",label:"mean"},{pts:sy.map(r=>[r.ts,r.temp_max]),color:"#b42318",label:"max"}],
   {t0,t1,step:st,lines:[{y:d.temp_max_c,label:"alert "+d.temp_max_c+" °C"}],fmt:v=>v.toFixed(0)});
  chart("cClk","CPU clock (lowest)","MHz",[{pts:sy.map(r=>[r.ts,r.clock_min]),color:"#2e7dd1",label:"lowest"}],
-  {t0,t1,step:st,ymin:0,ymax:Math.ceil(Math.max(1000,...sy.map(r=>r.clock_min||0))/250)*250,marks:sy.filter(r=>r.uv_pct>0).map(r=>r.ts),fmt:v=>Math.round(v)});
+  {t0,t1,step:st,ymin:0,ymax:Math.ceil(Math.max(1000,...sy.map(r=>r.clock_min||0))/250)*250,marks:sy.filter(r=>r.uv_pct>0).map(r=>r.ts),fmt:v=>Math.round(v)});}
  const slStep=st<=300?120:st;
  chart("cCov","Slot coverage","%",[{pts:sl.map(r=>[r.ts,r.cov]),color:"#1f7a3d",label:"coverage"}],
   {t0,t1,step:Math.max(slStep,600),ymin:Math.min(80,...sl.map(r=>r.cov)),ymax:100,lines:[{y:d.coverage_min,label:"alert "+d.coverage_min+" %"}],fmt:v=>v.toFixed(0)});
