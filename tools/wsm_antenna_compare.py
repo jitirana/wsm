@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Compare WSM reception by antenna setting (and gain) from the slots/spots tables.
-usage: wsm_antenna_compare.py [/home/pi/wsm/data/wsm.sqlite] [--since "YYYY-MM-DD HH:MM" (UTC)]
+usage: wsm_antenna_compare.py [DB] [--since "YYYY-MM-DD HH:MM" (UTC)]   (DB defaults to ~/wsm/data/wsm.sqlite)
 Per band and antenna: slots listened, spots, spots/h, median SNR, best DX, median input
 peak and mean power. Compare the same band at similar times of day (propagation changes)."""
 import sqlite3, sys, os, statistics as st, datetime as dt
 
-args = [a for a in sys.argv[1:] if not a.startswith("--")]
-db_path = os.path.expanduser(args[0] if args else "~/wsm/data/wsm.sqlite")
+import argparse
+ap = argparse.ArgumentParser(description="Compare WSM reception by antenna setting.")
+ap.add_argument("db", nargs="?", default="~/wsm/data/wsm.sqlite", help="path of wsm.sqlite")
+ap.add_argument("--since", help='only slots from this time on, UTC, "YYYY-MM-DD HH:MM"')
+opt = ap.parse_args()
+db_path = os.path.expanduser(opt.db)
 since = 0
-if "--since" in sys.argv:
-    since = int(dt.datetime.strptime(sys.argv[sys.argv.index("--since") + 1], "%Y-%m-%d %H:%M")
-                .replace(tzinfo=dt.timezone.utc).timestamp())
+if opt.since:
+    since = int(dt.datetime.strptime(opt.since, "%Y-%m-%d %H:%M").replace(tzinfo=dt.timezone.utc).timestamp())
 db = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
 
 rows = db.execute("""SELECT s.id, s.ts, s.band, COALESCE(s.antenna,'?'), s.gain_db, s.peak, s.rms_db, s.status
