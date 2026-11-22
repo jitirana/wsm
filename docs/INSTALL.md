@@ -137,6 +137,26 @@ ingress:
 ```
 
 Visitors need `?key=TOKEN` once (a cookie remembers it); the `/about` page is public.
+With `web.public: yes` visitors without the key see a read-only public view (spots, map, waterfall; no health card, no CSV,
+and the station position only to a 6-character locator square).
+
+### Station landing page
+
+WSM can also serve a public page for the whole station (WSPR and ADS-B numbers, equipment, links, other projects) on its own
+host name, e.g. the bare domain. Fill the `landing` section of `wsm.yaml` (see CONFIGURATION.md), then send that host name
+to the same port:
+
+```yaml
+ingress:
+  - hostname: example.org
+    service: http://127.0.0.1:8091
+  - hostname: wsm.example.org
+    service: http://127.0.0.1:8091
+  - service: http_status:404
+```
+
+and create the DNS record once: `cloudflared tunnel route dns TUNNEL example.org`. If the name already has a DNS record (for
+example GitHub Pages), remove it in the Cloudflare dashboard first.
 
 ## 9. Backups
 

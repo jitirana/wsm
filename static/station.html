@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radio station</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#f4f1ec;--card:#fffdf9;--ink:#1d2430;--mute:#667085;--line:#e4ded3;--acc:#0b6b8a;--ok:#1f7a3d;--warn:#a15c00;--chip:#efe9dd;--hero:#0b3d52;--heroInk:#e9f4f8}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10151c;--card:#171e28;--ink:#e6eaf0;--mute:#9aa6b6;--line:#263041;--acc:#5ab8d8;--ok:#53c27a;--warn:#e0a03a;--chip:#222c3a;--hero:#0d2a38;--heroInk:#e6eaf0}}
+:root[data-theme=dark]{--bg:#10151c;--card:#171e28;--ink:#e6eaf0;--mute:#9aa6b6;--line:#263041;--acc:#5ab8d8;--ok:#53c27a;--warn:#e0a03a;--chip:#222c3a;--hero:#0d2a38;--heroInk:#e6eaf0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+a{color:var(--acc)}
+.hero{background:var(--hero);color:var(--heroInk);padding:36px 16px 30px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+.hero .wrap{padding:0}
+.call{font-size:clamp(38px,8vw,60px);font-weight:800;letter-spacing:.02em;line-height:1.05;margin:0}
+.sub{opacity:.85;font-size:18px;margin-top:6px}
+.live{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.1);font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:#53c27a;box-shadow:0 0 0 0 rgba(83,194,122,.7);animation:pulse 2s infinite}
+.dot.off{background:#9aa6b6;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(83,194,122,.6)}70%{box-shadow:0 0 0 9px rgba(83,194,122,0)}100%{box-shadow:0 0 0 0 rgba(83,194,122,0)}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+section{margin:26px 0}
+h2{font-size:22px;margin:0 0 4px}
+.lead{color:var(--mute);margin:0 0 14px;max-width:760px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.v{font-size:28px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.s{color:var(--mute);font-size:14px;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.btn{display:inline-block;padding:9px 16px;border-radius:10px;background:var(--acc);color:#fff;text-decoration:none;font-weight:600;font-size:15px}
+:root[data-theme=dark] .btn{color:#0d1a22}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .btn{color:#0d1a22}}
+.btn.alt,:root[data-theme=dark] .btn.alt{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .btn.alt{color:var(--acc)}}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+ul{margin:6px 0 0;padding-left:20px}li{margin:3px 0}
+.proj h3{margin:0 0 4px;font-size:17px}
+.proj p{margin:0 0 8px;color:var(--mute);font-size:15px}
+.links{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:6px}
+footer{color:var(--mute);font-size:13px;padding:20px 0 34px;border-top:1px solid var(--line);margin-top:30px}
+.muted{color:var(--mute)}
+.hide{display:none}
+</style>
+</head><body>
+<div class="hero"><div class="wrap">
+ <h1 class="call" id="call">&nbsp;</h1>
+ <div class="sub" id="sub">&nbsp;</div>
+ <div class="live"><span class="dot off" id="dot"></span><span id="liveTxt">loading…</span></div>
+</div></div>
+<main class="wrap">
+
+<section id="wsprS">
+ <h2>WSPR reception</h2>
+ <p class="lead">WSPR ("whisper") is a radio mode for testing propagation: stations around the world send a tiny beacon, often well under
+ 1 watt, every few minutes, and receivers like this one decode it even when it is far below the noise. Here is what this station
+ heard in the last 24 hours.</p>
+ <div class="grid">
+  <div class="card"><div class="k">Transmissions decoded</div><div class="v" id="wSpots">–</div><div class="s">last 24 hours</div></div>
+  <div class="card"><div class="k">Stations heard</div><div class="v" id="wCalls">–</div><div class="s">different callsigns, last 24 hours</div></div>
+  <div class="card"><div class="k">Farthest today</div><div class="v" id="wBest">–</div><div class="s" id="wBestS">&nbsp;</div></div>
+  <div class="card"><div class="k">Farthest ever</div><div class="v" id="wAll">–</div><div class="s" id="wAllS">&nbsp;</div></div>
+ </div>
+ <div class="chips" id="wBands"></div>
+ <div class="btns"><a class="btn" id="monBtn" href="#">Open the live WSPR monitor</a><a class="btn alt" id="aboutBtn" href="#">What is WSPR?</a></div>
+</section>
+
+<section id="adsbS">
+ <h2>Aircraft tracking (ADS-B)</h2>
+ <p class="lead">Airliners broadcast their position, altitude and speed on 1090 MHz several times a second. This station receives those
+ messages and shares them with flight-tracking networks, helping them cover the region.</p>
+ <div class="grid">
+  <div class="card"><div class="k">Aircraft in range now</div><div class="v" id="aNow">–</div><div class="s" id="aNowS">&nbsp;</div></div>
+  <div class="card"><div class="k">Messages per second</div><div class="v" id="aRate">–</div><div class="s">received from aircraft</div></div>
+  <div class="card"><div class="k">Farthest aircraft now</div><div class="v" id="aFar">–</div><div class="s" id="aFarS">&nbsp;</div></div>
+ </div>
+ <div class="btns"><a class="btn hide" id="adsbBtn" href="#">Open the live aircraft map</a></div>
+</section>
+
+<section id="aboutS">
+ <h2>About the station</h2>
+ <div class="cols">
+  <div class="card"><p id="about" style="margin:0"></p><div class="links" id="links"></div></div>
+  <div class="card hide" id="eqC"><div class="k">Equipment</div><ul id="equip"></ul></div>
+ </div>
+</section>
+
+<section id="projS" class="hide">
+ <h2>Other projects</h2>
+ <div class="cols" id="projects"></div>
+</section>
+
+<footer>Numbers update every 30 seconds. Times are UTC. Built with
+<a href="https://github.com/jitirana/wsm" target="_blank" rel="noopener">WSM</a> (GPL-3.0).</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const km=v=>v==null?"–":Math.round(v).toLocaleString("en-US")+" km";
+const safeUrl=u=>/^https?:\/\//i.test(String(u||""))?String(u):"#";
+let filled=false;
+function fillStatic(d){
+ const st=d.station;
+ document.title=d.title||st.callsign;
+ $("call").textContent=st.callsign;
+ $("sub").textContent=(d.title&&d.title!==st.callsign?d.title+" · ":"")+"Maidenhead locator "+st.grid;
+ const mon=d.monitor_url;
+ if(mon){$("monBtn").href=mon;$("aboutBtn").href=mon.replace(/\/?$/,"/")+"about"}else{$("monBtn").classList.add("hide");$("aboutBtn").classList.add("hide")}
+ if(d.adsb_url){$("adsbBtn").href=d.adsb_url;$("adsbBtn").classList.remove("hide")}
+ $("about").textContent=d.about||"";
+ $("links").innerHTML=(d.links||[]).map(l=>`<a href="${esc(safeUrl(l.url))}" target="_blank" rel="noopener">${esc(l.name||l.url)}</a>`).join("");
+ if((d.equipment||[]).length){$("eqC").classList.remove("hide");$("equip").innerHTML=d.equipment.map(e=>`<li>${esc(e)}</li>`).join("")}
+ if(!d.about&&!(d.links||[]).length&&!(d.equipment||[]).length)$("aboutS").classList.add("hide");
+ const pr=d.projects||[];
+ if(pr.length){$("projS").classList.remove("hide");
+  $("projects").innerHTML=pr.map(p=>`<div class="card proj"><h3>${esc(p.name)}</h3><p>${esc(p.text||"")}</p>${p.url?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${esc(p.link||"Open")} →</a>`:""}</div>`).join("")}
+ filled=true}
+async function load(){
+ let d;try{d=await fetch("/api/landing",{cache:"no-store"}).then(r=>r.json())}catch(e){$("liveTxt").textContent="station data not available right now";return}
+ if(!filled)fillStatic(d);
+ const w=d.wspr||{},on=(w.listening||[]).find(r=>r.state==="listening");
+ $("dot").classList.toggle("off",!on);
+ $("liveTxt").textContent=on?`On the air · listening to WSPR on ${on.band}`:"WSPR receiver idle";
+ $("wSpots").textContent=w.spots_24h==null?"–":w.spots_24h.toLocaleString("en-US");
+ $("wCalls").textContent=w.stations_24h==null?"–":w.stations_24h;
+ const b=w.best_24h,a=w.best_all;
+ $("wBest").textContent=b?km(b.dist_km):"–";$("wBestS").textContent=b?`${b.call} · ${b.grid} · ${b.band}`:"nobody far heard yet today";
+ $("wAll").textContent=a?km(a.dist_km):"–";
+ $("wAllS").textContent=a?`${a.call} · ${a.grid} · ${a.band}${a.ts?" · "+new Date(a.ts*1000).toISOString().slice(0,10):""}`:"";
+ $("wBands").innerHTML=(w.bands_24h||[]).map(x=>`<span class="chip">${esc(x.band)}: ${x.calls} station${x.calls===1?"":"s"}</span>`).join("");
+ const ad=d.adsb||{};
+ if(!ad.ok){$("aNow").textContent="–";$("aNowS").textContent="receiver offline";$("aRate").textContent="–";$("aFar").textContent="–";$("aFarS").textContent=""}
+ else{$("aNow").textContent=ad.aircraft;$("aNowS").textContent=ad.with_pos+" with position";
+  $("aRate").textContent=ad.msg_rate==null?"…":ad.msg_rate.toFixed(0);
+  $("aFar").textContent=km(ad.farthest_km);
+  const f=ad.farthest;$("aFarS").textContent=f?[f.flight,f.alt_ft!=null?f.alt_ft.toLocaleString("en-US")+" ft":null].filter(Boolean).join(" · "):""}}
+load();setInterval(load,30000);
+</script>
+</body></html>

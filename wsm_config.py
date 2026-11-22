@@ -15,7 +15,12 @@ DEFAULTS = dict(
     station=dict(callsign="PU2TKN", grid="HI03"),
     data_dir="~/wsm/data",                 # SQLite database, decoder scratch files
     decoder=dict(path="~/wsm/decoder/wsm_decode", hashtable=False),
-    web=dict(enabled=True, host="127.0.0.1", port=8091, token=""),
+    web=dict(enabled=True, host="127.0.0.1", port=8091, token="",
+             public=False),                # True: visitors without the key see spots, map and waterfall (not health, not CSV)
+    landing=dict(                          # station landing page, served when the request comes for one of `hosts`
+        enabled=False, hosts=[], title="", about="", equipment=[], links=[], projects=[],
+        monitor_url="", adsb_url=""),
+    adsb=dict(json_dir="/run/readsb"),     # readsb JSON files, for the ADS-B numbers of the landing page
     keep_days=0,                           # 0 = keep every spot
     store_own_spots=False,                 # False: spots of the station's own callsign (TX = RX) are not stored
     waterfall=True,                        # picture of the last slot of each band (RAM only)

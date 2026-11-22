@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13 – Public view and station page
+- `web.public`: visitors without the key get a read-only view (no health card, no CSV, position only to the 6-character
+  locator square); a "public view" tag in the header.
+- Station landing page (`landing`, `static/station.html`): WSPR numbers of the last 24 h, ADS-B numbers from readsb
+  (`wsm_landing.py`, `adsb.json_dir`), about the station, equipment, links and other projects; served on its own host name.
+
 ## 1.12 – Day and night
 - Map: the part of the Earth where it is night now is shaded, with the grey line (sunrise / sunset) and the point where the
   Sun is overhead; updated every minute, "night" button to switch it off.

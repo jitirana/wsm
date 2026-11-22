@@ -37,9 +37,39 @@ web:
   host: 127.0.0.1           # keep it local and publish through a tunnel
   port: 8091
   token: ""                 # if set, open http://host:port/?key=TOKEN once (a cookie remembers it); use 16+ characters
+  public: no                # yes: visitors without the key get a read-only public view (needs a token)
 ```
 
-The `/about` page ("What is WSPR?") is always public; everything else needs the token when one is set.
+The `/about` page ("What is WSPR?") is always public. Without `public`, everything else needs the token when one is set.
+With `public: yes` a visitor without the key sees the cards, waterfall, band table, map and spot list (at most 1000 spots);
+the **System** card, `/api/system` and the CSV export stay behind the key, and the station position is given only as the
+centre of its 6-character locator square (the same locator WSPRnet shows).
+
+## Station landing page
+
+A public page for the whole station, served when the request comes for one of `hosts` (publish that name with the tunnel,
+see INSTALL.md). Everything in it is public: do not put addresses, exact coordinates or private feeder keys here.
+
+```yaml
+landing:
+  enabled: no
+  hosts: [example.org]      # host names that get the landing page at "/"
+  title: Amateur radio station
+  about: "Receiving station for WSPR and ADS-B in ..."
+  equipment: ["Raspberry Pi 3B+", "SDRplay RSP2 (WSPR)", "RTL-SDR dongle (ADS-B 1090 MHz)"]
+  links:                    # shown under "About the station"
+    - {name: QRZ.com, url: "https://www.qrz.com/db/CALL"}
+  projects:                 # "Other projects": name, short description, optional link
+    - {name: "SSM - SID System Monitor", text: "...", url: "https://...", link: "Open SSM"}
+  monitor_url: https://wsm.example.org/     # the WSPR monitor (its /about is linked as "What is WSPR?")
+  adsb_url: https://fsm.example.org/        # live aircraft map (tar1090)
+
+adsb:
+  json_dir: /run/readsb     # where readsb writes aircraft.json, receiver.json, stats.json
+```
+
+The page refreshes every 30 s from `/api/landing` (cached for 30 s on the server). The ADS-B numbers (aircraft now, messages
+per second, farthest aircraft) need readsb on the same computer; without it that section shows "receiver offline".
 
 ## Radio
 

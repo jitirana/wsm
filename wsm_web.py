@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import wsm_geo
+import wsm_landing
+import wsm_wsprnet
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -63,6 +65,8 @@ tr:hover td{background:color-mix(in srgb,var(--chip) 60%,transparent)}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;background:var(--chip);font-size:12px}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
 .mute{color:var(--mute)}
+body.pub #csv{display:none}body.pub #pubTag{display:inline-block}
+#pubTag{display:none;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mute)}
 .note{color:var(--mute);font-size:13px;margin-top:8px}
 .cx{border:0;background:none;color:var(--mute);padding:0 4px;font-size:13px}
 .card.min>:not(h2){display:none}
@@ -75,7 +79,7 @@ tr:hover td{background:color-mix(in srgb,var(--chip) 60%,transparent)}
 </style>
 <link rel="stylesheet" href="static/leaflet.css">
 </head><body><main>
-<header><h1>WSM <small>WSPR System Monitor</small></h1><span id="who" class="mute"></span>
+<header><h1>WSM <small>WSPR System Monitor</small></h1><span id="who" class="mute"></span><span id="pubTag" title="you are seeing the public view of this station">public view</span>
 <span style="flex:1"></span><a href="/about" style="color:var(--acc);text-decoration:none;font-weight:600;margin-right:12px">What is WSPR?</a><span id="upd" class="mute"></span></header>
 <div class="cards" id="cards"></div>
 <div class="panel" id="wfP" style="display:none"><h2><b class="ht">Last slot · waterfall<button class="hq" data-h="wf" aria-label="explain">?</button></b><span id="wfInfo"></span></h2>
@@ -259,6 +263,7 @@ async function load(){
   const per=all?"all time":$("per").selectedOptions[0].textContent;    // the label as shown in the selector ("last 7 days", not "last 168 h")
   const [st,sm,sp,sy]=await Promise.all([fetch("api/status").then(r=>r.json()),fetch("api/summary?hours="+hrs+($("noOwn").checked?"&noown=1":"")).then(r=>r.json()),fetch("api/spots?"+q()+"&limit=1000").then(r=>r.json()),fetch("api/system").then(r=>r.json()).catch(()=>({}))]);
   const s=st.station,m=st.map;
+  document.body.classList.toggle("pub",!st.auth);
   $("who").innerHTML=esc(s.callsign)+" · "+(m?`<a href="${esc(m)}" target="_blank" rel="noopener">${esc(s.grid)}</a>`:esc(s.grid));
   $("hrsB").textContent=per;
   let cards="";
@@ -409,6 +414,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.log(f"web: too many wrong keys from {ip}; locked out for 10 minutes")
         return False, None
 
+    def _page(self, name):
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", name), "rb") as f:
+            return self._send(200, f.read(), "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
+
     def _static(self, name):
         types = {"leaflet.js": "application/javascript; charset=utf-8", "leaflet.css": "text/css; charset=utf-8"}
         if name not in types:
@@ -426,13 +435,23 @@ class Handler(BaseHTTPRequestHandler):
             if u.path in ("/favicon.svg", "/favicon.ico"):
                 return self._send(200, FAVICON_SVG, "image/svg+xml", {"Cache-Control": "public, max-age=86400"})
             if u.path in ("/about", "/about/", "/wspr"):                   # public: the "What is WSPR?" page (no station data in it)
-                with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "about.html"), "rb") as f:
-                    return self._send(200, f.read(), "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
+                return self._page("about.html")
+            land = self.server.cfg.get("landing") or {}
+            if _yes(land.get("enabled")):                                # public station landing page (its own host name)
+                host = (self.headers.get("Host") or "").split(":")[0].strip().lower()
+                if u.path == "/api/landing":
+                    return self._json(wsm_landing.landing(self.server.cfg, self.server.db, self.server.state))
+                if host and host in [str(h).lower() for h in land.get("hosts") or []]:
+                    if u.path in ("/", "/index.html"):
+                        return self._page("station.html")
+                    return self._send(404, "not found", "text/plain; charset=utf-8")
             ok, setcookie = self._authorized(q)
             if ok is None:
                 return self._send(429, "too many attempts", "text/plain; charset=utf-8", {"Retry-After": "600"})
+            authed = bool(ok)
             if not ok:
-                return self._send(401, "restricted access", "text/plain; charset=utf-8")
+                if not (self.server.public and (u.path in PUBLIC_PATHS or u.path.startswith("/static/"))):
+                    return self._send(401, "restricted access", "text/plain; charset=utf-8")
             if setcookie:
                 return self._send(303, "", "text/plain", {"Location": "/", "Set-Cookie": setcookie})
             db, st, p = self.server.db, self.server.state, u.path
@@ -450,8 +469,15 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/status":
                 cfg = st.cfg["station"]
                 ll = wsm_geo.grid_to_latlon(cfg["grid"])
-                return self._json(dict(station=cfg, map=wsm_geo.maps_url(*ll) if ll else None, radios=st.snapshot(), bands=st.bands,
-                                       uptime_s=int(time.time() - st.started)))
+                station = cfg
+                if not authed:                                   # public visitor: callsign, locator and a 6-character square only
+                    g6 = wsm_wsprnet.grid6(cfg.get("lat"), cfg.get("lon"))
+                    c6 = wsm_geo.grid_to_latlon(g6) if g6 else None
+                    station = dict(callsign=cfg["callsign"], grid=cfg["grid"])
+                    if c6:
+                        station.update(lat=round(c6[0], 3), lon=round(c6[1], 3))
+                return self._json(dict(station=station, map=wsm_geo.maps_url(*ll) if ll else None, radios=st.snapshot(), bands=st.bands,
+                                       uptime_s=int(time.time() - st.started), auth=authed, public=self.server.public))
             own = st.cfg["station"]["callsign"]
             noown = (q.get("noown") or ["0"])[0] in ("1", "true", "yes")
             if p == "/api/summary":
@@ -470,7 +496,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(sm.snapshot() if sm else {})
             if p == "/api/spots":
                 return self._json(dict(spots=db.spots(num("since", 0, 0, 2 ** 40), (q.get("band") or [""])[0] or None,
-                                                      (q.get("call") or [""])[0] or None, num("limit", 500, 1, 100000), own if noown else None)))
+                                                      (q.get("call") or [""])[0] or None, num("limit", 500, 1, 100000 if authed else 1000),
+                                                      own if noown else None)))
             if p == "/api/slots":
                 return self._json(dict(slots=db.recent_slots(num("limit", 12, 1, 500))))
             if p == "/spots.csv":
@@ -494,6 +521,13 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
 
+PUBLIC_PATHS = {"/", "/index.html", "/api/status", "/api/summary", "/api/spots", "/api/waterfall", "/api/waterfall.png"}
+
+
+def _yes(v):
+    return v is True or str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -504,6 +538,9 @@ def start(cfg, db, state, log=print):
     srv = Server((w["host"], int(w["port"])), Handler)
     srv.db, srv.state, srv.token = db, state, (w.get("token") or "").strip()
     srv.fails, srv.log = {}, log                                 # PATCH9
+    srv.cfg, srv.public = cfg, _yes(w.get("public")) and bool(srv.token)
+    if srv.public:
+        log("web: public mode - visitors without the key see spots, map and waterfall (not health, not CSV)")
     srv.session = hmac.new(srv.token.encode(), b"wsm-session-v1", hashlib.sha256).hexdigest()
     if not srv.token:
         log("web: WARNING no web.token set - the page is open to everybody who can reach it")
