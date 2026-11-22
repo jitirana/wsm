@@ -65,11 +65,15 @@ a{color:var(--acc)}
 select,input,button{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
 button{cursor:pointer}button.on{border-color:var(--acc)}
 .tw{overflow-x:auto}
-.og{display:grid;grid-template-columns:44px repeat(24,minmax(11px,1fr));gap:2px;font-size:11px;align-items:center;min-width:480px}
-.og .bl{color:var(--ink);font-weight:600;grid-row:span 2}.og .bl.one{grid-row:auto}.og .hd{color:var(--mute);text-align:center;font-size:10px}
-.og .c{height:13px;border-radius:2px;background:var(--chip)}.og .c.nd{background:repeating-linear-gradient(45deg,transparent 0 3px,var(--line) 3px 4px)}
-.og .c.cur{outline:2px solid var(--ink);outline-offset:-1px}
-.og .m{background:var(--acc)}.og .r{background:var(--mute)}.og .c.z{background:var(--chip);border:1px dashed var(--line)}
+.og{display:grid;grid-template-columns:34px 26px repeat(24,minmax(11px,1fr));gap:2px;font-size:11px;align-items:center;min-width:520px}
+.og .bl{color:var(--ink);font-weight:700;grid-row:span 2}.og .bl.one{grid-row:auto}.og .hd{color:var(--mute);text-align:center;font-size:10px}
+.og .tg{color:var(--mute);font-size:9px;text-transform:uppercase;letter-spacing:.04em}.og .sp{grid-column:1/-1;height:5px}
+.og .c{height:14px;border-radius:2px;background:transparent;border:1px solid var(--line);box-sizing:border-box}
+.og .c.nd{border-color:transparent;background:repeating-linear-gradient(45deg,transparent 0 3px,var(--line) 3px 4px)}
+.og .c.cur{outline:2px solid var(--ink);outline-offset:1px}
+.og .c.z{border-color:#2d9d6b}
+.og .m1{background:#b7e4c7;border-color:#b7e4c7}.og .m2{background:#74c69d;border-color:#74c69d}.og .m3{background:#2d9d6b;border-color:#2d9d6b}.og .m4{background:#0b5d37;border-color:#0b5d37}
+.og .r1{background:#fde2b0;border-color:#fde2b0}.og .r2{background:#f7c260;border-color:#f7c260}.og .r3{background:#e08a1e;border-color:#e08a1e}.og .r4{background:#a04a00;border-color:#a04a00}
 .lg{display:flex;flex-wrap:wrap;gap:12px;color:var(--mute);font-size:12px;margin:8px 0 0}.lg i{display:inline-block;width:12px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
 table{border-collapse:collapse;width:100%;min-width:720px}
 th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -106,7 +110,7 @@ Each WSPR station is a thin vertical trace about 110 s long; the decoded ones ar
 <div class="tools"><button data-d="7">7 days</button><button data-d="30" class="on">30 days</button><button data-d="90">90 days</button><button data-d="0">All</button>
 <button id="openTz">UTC</button><button id="openRef" class="on">WSPRnet reference</button></div>
 <div class="tw"><div class="og" id="openG"></div></div>
-<div class="lg"><span><i style="background:var(--acc)"></i>heard by this receiver (spots per listened hour)</span><span><i style="background:var(--mute)"></i>WSPRnet reference (spots per day)</span><span><i style="background:repeating-linear-gradient(45deg,transparent 0 3px,var(--line) 3px 4px)"></i>not listened</span></div>
+<div class="lg"><span><i style="background:linear-gradient(90deg,#b7e4c7,#0b5d37)"></i>ME: heard by this receiver (spots per listened hour)</span><span><i style="background:linear-gradient(90deg,#fde2b0,#a04a00)"></i>REF: WSPRnet reference (spots per day)</span><span><i style="border:1px solid #2d9d6b"></i>listened, nothing heard</span><span><i style="background:repeating-linear-gradient(45deg,transparent 0 3px,var(--line) 3px 4px)"></i>not listened</span></div>
 <p class="note" id="openNote"></p></div>
 <div class="panel" id="mapP"><h2><b class="ht">Map<button class="hq" data-h="map" aria-label="explain">?</button></b><span id="mapInfo"></span></h2>
 <div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mNight" class="on" title="shade the part of the Earth where it is night now">night</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
@@ -137,7 +141,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // ---- "?" explanations: tap or click a "?" next to a title ----
 const HELP={
- open:"When each band is <b>open</b>, by hour of the day. Each band has two rows. <b>Top row</b>: what this receiver decoded, spots per hour of listening (darker = more); hatched = it never listened at that hour (the schedule may skip the band). <b>Bottom row</b>: the public WSPRnet database for stations around you, spots of at least a few hundred km per day, shown while your own data is thin. Hover a cell for numbers: spots, stations, best DX, SNR. The outlined column is the current hour. Times are UTC unless you switch to local.",
+ open:"When each band is <b>open</b>, by hour of the day. Each band has two rows. <b>Green row (me)</b>: what this receiver decoded, spots per hour of listening (darker = more); green outline = listened, nothing heard; hatched = it never listened at that hour (the schedule may skip the band). <b>Orange row (ref)</b>: the public WSPRnet database for stations around you, spots of at least a few hundred km per day, shown while your own data is thin. Hover a cell for numbers: spots, stations, best DX, SNR. The outlined column is the current hour. Times are UTC unless you switch to local.",
  radio:"State of the receiver. <b>listening</b> = recording a 2-minute slot; <b>opening</b> = starting the radio; <b>error</b> = see the log. Below: band of this slot, antenna input and time to the next slot. WSM listens to one band per slot, following the rotation (or the day/night schedule) in wsm.yaml.",
  level:"Strongest sample of the last slot, as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>mean</b> is the average power in dB (relative): useful to compare the noise of bands and antennas.",
  system:"Health of the computer: CPU temperature, CPU clock (a Raspberry Pi slows down when hot or under-powered), power supply and <b>coverage</b>, the share of the samples actually recorded in the slots of the last hour. Below 100 % the computer is losing samples and weak stations are missed. Hover the card for details.",
@@ -334,23 +338,22 @@ async function loadOpen(force){
 function drawOpen(){
  const d=opData;if(!d)return;
  const off=opLocal?Math.round(-new Date().getTimezoneOffset()/60):0,hr=i=>((i-off)%24+24)%24;   // column i shows UTC hour hr(i)
- let h='<span></span>';for(let i=0;i<24;i++)h+=`<span class="hd">${i}</span>`;
+ let h='<span></span><span></span>';for(let i=0;i<24;i++)h+=`<span class="hd">${i}</span>`;
  const showRef=opRef&&d.reference;
- let anyMine=0,anyRef=0;
+ const lv=x=>x<0.25?1:x<0.5?2:x<0.75?3:4;      // 4 colour steps, not opacity: easier to tell apart
  for(const b of d.bands){
   const m=d.mine[b]||[],r=d.ref[b]||[];
   const rate=c=>c&&c.listen_h>0?c.spots/c.listen_h:0,top=Math.max(0.01,...m.map(rate)),rtop=Math.max(0.01,...r.map(c=>c?c.spots_per_day:0));
-  h+=`<span class="bl${showRef?"":" one"}">${esc(b)}</span>`;
+  h+=`<span class="sp"></span><span class="bl${showRef?"":" one"}">${esc(b)}</span><span class="tg">me</span>`;
   for(let i=0;i<24;i++){const u=hr(i),c=m[u],cur=u===d.now_hour?" cur":"";
    if(!c){h+=`<span class="c nd${cur}" title="${esc(b)} ${u}:00 UTC - not listened"></span>`;continue}
-   const v=rate(c);anyMine+=c.spots;
    const tip=`${b} ${String(u).padStart(2,"0")}:00 UTC · listened ${c.listen_h.toFixed(1)} h · ${c.spots} spots · ${c.stations} stations`+(c.max_km?` · best ${c.max_km} km`:"")+(c.snr!=null?` · SNR ${c.snr} dB`:"");
-   h+=c.spots?`<span class="c m${cur}" style="opacity:${(0.2+0.8*Math.sqrt(v/top)).toFixed(2)}" title="${esc(tip)}"></span>`:`<span class="c z${cur}" title="${esc(tip)}"></span>`}
-  if(showRef)for(let i=0;i<24;i++){const u=hr(i),c=r[u],cur=u===d.now_hour?" cur":"";
-   if(!c){h+=`<span class="c${cur}" title="${esc(b)} ${u}:00 UTC - no reference spots"></span>`;continue}
-   anyRef+=c.spots;
-   const tip=`WSPRnet ${b} ${String(u).padStart(2,"0")}:00 UTC · ${c.spots_per_day} spots/day · ${c.stations} stations · ${c.receivers} receivers`+(c.max_km?` · best ${c.max_km} km`:"")+(c.snr!=null?` · SNR ${c.snr} dB`:"");
-   h+=`<span class="c r${cur}" style="opacity:${(0.15+0.85*Math.sqrt(c.spots_per_day/rtop)).toFixed(2)}" title="${esc(tip)}"></span>`}
+   h+=`<span class="c ${c.spots?"m"+lv(Math.sqrt(rate(c)/top)):"z"}${cur}" title="${esc(tip)}"></span>`}
+  if(showRef){h+=`<span class="tg">ref</span>`;
+   for(let i=0;i<24;i++){const u=hr(i),c=r[u],cur=u===d.now_hour?" cur":"";
+    if(!c){h+=`<span class="c${cur}" title="${esc(b)} ${u}:00 UTC - no reference spots"></span>`;continue}
+    const tip=`WSPRnet ${b} ${String(u).padStart(2,"0")}:00 UTC · ${c.spots_per_day} spots/day · ${c.stations} stations · ${c.receivers} receivers`+(c.max_km?` · best ${c.max_km} km`:"")+(c.snr!=null?` · SNR ${c.snr} dB`:"");
+    h+=`<span class="c r${lv(Math.sqrt(c.spots_per_day/rtop))}${cur}" title="${esc(tip)}"></span>`}}
  }
  $("openG").innerHTML=h;
  const ri=d.ref_info||{};
