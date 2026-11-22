@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- "Band openings" panel (public): bands x 24 hours. Top row of each band = what this receiver decoded (spots per listened hour,
+  hatched = never listened); bottom row = reference from the public WSPRnet database (wspr.live) for the region around the
+  station, shown while the own data is thin. New module `wsm_openings.py`, `/api/openings?days=`, tables `ref_openings` and `ref_meta`.
+  The reference is one read-only query per band about once a day (box rounded to whole degrees; own callsign excluded); disable with
+  `openings: {reference: {enabled: no}}`. Check it with `python3 wsm_openings.py -c wsm.yaml --fetch`.
 - `tools/wsm_antenna_compare.py`: compares reception by antenna setting (A / B / HIZ) and gain from the `slots` and `spots`
   tables: slots, spots per hour, median SNR, best DX, input peak and mean power, per band and period.
 

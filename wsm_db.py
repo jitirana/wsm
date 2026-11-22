@@ -55,6 +55,17 @@ CREATE TABLE IF NOT EXISTS syshist (       -- computer health, one row per 5 min
     low_clock_pct REAL,                    -- % of the samples below 1000 MHz
     samples   INTEGER
 );
+CREATE TABLE IF NOT EXISTS ref_openings (  -- public WSPRnet reference by band and hour of day (wsm_openings.py)
+    band      TEXT NOT NULL,
+    hour      INTEGER NOT NULL,            -- hour of day, UTC
+    spots     INTEGER,
+    stations  INTEGER,
+    receivers INTEGER,
+    max_km    INTEGER,
+    snr       REAL,
+    PRIMARY KEY (band, hour)
+);
+CREATE TABLE IF NOT EXISTS ref_meta (k TEXT PRIMARY KEY, v TEXT);
 """
 
 

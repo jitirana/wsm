@@ -97,6 +97,26 @@ radios:
 
 Known bands: 160m, 80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m, 10m, 6m, 4m, 2m, 70cm (WSPR dial frequencies built in).
 
+## Band openings
+The "Band openings" panel shows, for each band and hour of the day (UTC), the spots per listened hour of this receiver and a
+reference from the public WSPRnet database (https://wspr.live) for stations in your region. All keys are optional.
+
+```yaml
+openings:
+  enabled: yes
+  days: 30              # default period of the panel (the page can change it)
+  reference:
+    enabled: yes        # no = never contact wspr.live
+    days: 14            # period of the reference
+    min_km: 500         # only spots at least this long (skips local ground-wave)
+    radius_deg: 6.0     # region around the station in degrees (6 = about 650 km); rounded to whole degrees
+    direction: both     # rx = region stations as receivers, tx = as transmitters, both = either
+    refresh_hours: 24
+    bands: []           # default: the bands of the radios
+```
+The query is read-only, one request per band spaced by a few seconds, once a day; your own callsign is excluded.
+Test: `python3 wsm_openings.py -c ~/wsm/wsm.yaml --fetch`, then `--show` prints the stored matrix.
+
 ## Health monitor and alerts
 
 Alerts are sent with [ntfy](https://ntfy.sh): install the ntfy app on your phone and subscribe to a topic with a long, random

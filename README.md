@@ -23,6 +23,7 @@ Station PU2TKN, grid HI03 (north-east Brazil).
   station (WSPR and ADS-B numbers, equipment, other projects) on its own host name.
 - **"What is WSPR?"** – a public, bilingual (English / Portuguese) page at `/about` that explains the mode to visitors.
 - **WSPRnet upload** – the same HTTP report WSJT-X uses; your own transmitter is never reported.
+- **Band openings** – bands x hour-of-day map of what this receiver heard, over a WSPRnet (wspr.live) reference for your region.
 - **Health history** – temperature, CPU clock, under-voltage, slot coverage and noise level per band as graphs (6 h to 30 days).
 - **Health monitor and self-healing** – radio stall/hang detection with automatic restarts, plus alerts for under-voltage,
   temperature, sample loss, disk, database size and clock. See [docs/ALERTS.md](docs/ALERTS.md).

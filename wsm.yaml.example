@@ -34,3 +34,7 @@ radios:
 
 # Test with the PU2TKN transmitter (it sends in every even-minute slot): listen to 20 m only
 #   rotation: [20m]
+
+# Band openings panel. The defaults are fine; uncomment to change.
+# openings:
+#   reference: {enabled: yes, days: 14, min_km: 500, radius_deg: 6.0, direction: both}   # WSPRnet (wspr.live) background, once a day

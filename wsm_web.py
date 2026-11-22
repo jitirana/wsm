@@ -65,6 +65,12 @@ a{color:var(--acc)}
 select,input,button{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
 button{cursor:pointer}button.on{border-color:var(--acc)}
 .tw{overflow-x:auto}
+.og{display:grid;grid-template-columns:44px repeat(24,minmax(11px,1fr));gap:2px;font-size:11px;align-items:center;min-width:480px}
+.og .bl{color:var(--ink);font-weight:600;grid-row:span 2}.og .bl.one{grid-row:auto}.og .hd{color:var(--mute);text-align:center;font-size:10px}
+.og .c{height:13px;border-radius:2px;background:var(--chip)}.og .c.nd{background:repeating-linear-gradient(45deg,transparent 0 3px,var(--line) 3px 4px)}
+.og .c.cur{outline:2px solid var(--ink);outline-offset:-1px}
+.og .m{background:var(--acc)}.og .r{background:var(--mute)}.og .c.z{background:var(--chip);border:1px dashed var(--line)}
+.lg{display:flex;flex-wrap:wrap;gap:12px;color:var(--mute);font-size:12px;margin:8px 0 0}.lg i{display:inline-block;width:12px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
 table{border-collapse:collapse;width:100%;min-width:720px}
 th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
@@ -96,6 +102,12 @@ body.pub #csv{display:none}body.pub #pubTag{display:inline-block}
 <p class="note">What the receiver heard in the last 2-minute slot of the band: frequency across (the 200 Hz WSPR window), time downwards.
 Each WSPR station is a thin vertical trace about 110 s long; the decoded ones are labelled with their callsign and SNR. Brighter = stronger.</p></div>
 <div class="panel" id="bandsP"><h2><b class="ht">Bands<button class="hq" data-h="bands" aria-label="explain">?</button></b><span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
+<div class="panel" id="openP"><h2><b class="ht">Band openings<button class="hq" data-h="open" aria-label="explain">?</button></b><span id="openInfo"></span></h2>
+<div class="tools"><button data-d="7">7 days</button><button data-d="30" class="on">30 days</button><button data-d="90">90 days</button><button data-d="0">All</button>
+<button id="openTz">UTC</button><button id="openRef" class="on">WSPRnet reference</button></div>
+<div class="tw"><div class="og" id="openG"></div></div>
+<div class="lg"><span><i style="background:var(--acc)"></i>heard by this receiver (spots per listened hour)</span><span><i style="background:var(--mute)"></i>WSPRnet reference (spots per day)</span><span><i style="background:repeating-linear-gradient(45deg,transparent 0 3px,var(--line) 3px 4px)"></i>not listened</span></div>
+<p class="note" id="openNote"></p></div>
 <div class="panel" id="mapP"><h2><b class="ht">Map<button class="hq" data-h="map" aria-label="explain">?</button></b><span id="mapInfo"></span></h2>
 <div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mNight" class="on" title="shade the part of the Earth where it is night now">night</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
 <div id="map"></div>
@@ -125,6 +137,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // ---- "?" explanations: tap or click a "?" next to a title ----
 const HELP={
+ open:"When each band is <b>open</b>, by hour of the day. Each band has two rows. <b>Top row</b>: what this receiver decoded, spots per hour of listening (darker = more); hatched = it never listened at that hour (the schedule may skip the band). <b>Bottom row</b>: the public WSPRnet database for stations around you, spots of at least a few hundred km per day, shown while your own data is thin. Hover a cell for numbers: spots, stations, best DX, SNR. The outlined column is the current hour. Times are UTC unless you switch to local.",
  radio:"State of the receiver. <b>listening</b> = recording a 2-minute slot; <b>opening</b> = starting the radio; <b>error</b> = see the log. Below: band of this slot, antenna input and time to the next slot. WSM listens to one band per slot, following the rotation (or the day/night schedule) in wsm.yaml.",
  level:"Strongest sample of the last slot, as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>mean</b> is the average power in dB (relative): useful to compare the noise of bands and antennas.",
  system:"Health of the computer: CPU temperature, CPU clock (a Raspberry Pi slows down when hot or under-powered), power supply and <b>coverage</b>, the share of the samples actually recorded in the slots of the last hour. Below 100 % the computer is losing samples and weak stations are missed. Hover the card for details.",
@@ -312,6 +325,42 @@ async function loadHist(force){
 for(const b of document.querySelectorAll("#histP .tools button"))b.addEventListener("click",()=>{histH=+b.dataset.h;
  for(const x of document.querySelectorAll("#histP .tools button"))x.classList.toggle("on",x===b);loadHist(true)});
 let rsz;addEventListener("resize",()=>{clearTimeout(rsz);rsz=setTimeout(drawHist,200)});
+// ---- band openings: band x hour of the day ----
+let opD=30,opLocal=false,opRef=true,opData=null,opT=0;
+async function loadOpen(force){
+ if(!force&&Date.now()-opT<120000)return;opT=Date.now();
+ try{opData=await fetch("api/openings?days="+opD).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("openP").style.display="none";return}
+ $("openP").style.display="";drawOpen()}
+function drawOpen(){
+ const d=opData;if(!d)return;
+ const off=opLocal?Math.round(-new Date().getTimezoneOffset()/60):0,hr=i=>((i-off)%24+24)%24;   // column i shows UTC hour hr(i)
+ let h='<span></span>';for(let i=0;i<24;i++)h+=`<span class="hd">${i}</span>`;
+ const showRef=opRef&&d.reference;
+ let anyMine=0,anyRef=0;
+ for(const b of d.bands){
+  const m=d.mine[b]||[],r=d.ref[b]||[];
+  const rate=c=>c&&c.listen_h>0?c.spots/c.listen_h:0,top=Math.max(0.01,...m.map(rate)),rtop=Math.max(0.01,...r.map(c=>c?c.spots_per_day:0));
+  h+=`<span class="bl${showRef?"":" one"}">${esc(b)}</span>`;
+  for(let i=0;i<24;i++){const u=hr(i),c=m[u],cur=u===d.now_hour?" cur":"";
+   if(!c){h+=`<span class="c nd${cur}" title="${esc(b)} ${u}:00 UTC - not listened"></span>`;continue}
+   const v=rate(c);anyMine+=c.spots;
+   const tip=`${b} ${String(u).padStart(2,"0")}:00 UTC · listened ${c.listen_h.toFixed(1)} h · ${c.spots} spots · ${c.stations} stations`+(c.max_km?` · best ${c.max_km} km`:"")+(c.snr!=null?` · SNR ${c.snr} dB`:"");
+   h+=c.spots?`<span class="c m${cur}" style="opacity:${(0.2+0.8*Math.sqrt(v/top)).toFixed(2)}" title="${esc(tip)}"></span>`:`<span class="c z${cur}" title="${esc(tip)}"></span>`}
+  if(showRef)for(let i=0;i<24;i++){const u=hr(i),c=r[u],cur=u===d.now_hour?" cur":"";
+   if(!c){h+=`<span class="c${cur}" title="${esc(b)} ${u}:00 UTC - no reference spots"></span>`;continue}
+   anyRef+=c.spots;
+   const tip=`WSPRnet ${b} ${String(u).padStart(2,"0")}:00 UTC · ${c.spots_per_day} spots/day · ${c.stations} stations · ${c.receivers} receivers`+(c.max_km?` · best ${c.max_km} km`:"")+(c.snr!=null?` · SNR ${c.snr} dB`:"");
+   h+=`<span class="c r${cur}" style="opacity:${(0.15+0.85*Math.sqrt(c.spots_per_day/rtop)).toFixed(2)}" title="${esc(tip)}"></span>`}
+ }
+ $("openG").innerHTML=h;
+ const ri=d.ref_info||{};
+ $("openInfo").textContent=(opLocal?"local time":"UTC")+" · "+(d.days?"last "+d.days+" days":"all data");
+ $("openNote").textContent=showRef?(ri.updated?`Reference: WSPRnet (wspr.live), spots of at least ${ri.min_km} km in a region of about ${Math.round(ri.radius_deg*111)} km around the station, last ${ri.days} days, updated ${new Date(ri.updated*1000).toLocaleString([],{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}.`:"Reference not downloaded yet (first fetch a few minutes after the start, then once a day)."):"";
+}
+for(const b of document.querySelectorAll("#openP .tools button[data-d]"))b.addEventListener("click",()=>{opD=+b.dataset.d;
+ for(const x of document.querySelectorAll("#openP .tools button[data-d]"))x.classList.toggle("on",x===b);loadOpen(true)});
+$("openTz").addEventListener("click",e=>{opLocal=!opLocal;e.target.textContent=opLocal?"Local":"UTC";drawOpen()});
+$("openRef").addEventListener("click",e=>{opRef=!opRef;e.target.classList.toggle("on",opRef);drawOpen()});
 // ---- waterfall of the last slot of each band ----
 let wfBand=null,wfShown=null;
 async function loadWf(){
@@ -366,7 +415,7 @@ async function load(){
   const ba=sm.best_all;
   cards+=`<div class="card"><div class="k">${hq("bestall")}Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
   $("cards").innerHTML=cards;
-  loadWf();loadHist();
+  loadWf();loadHist();loadOpen();
   let h="<thead><tr><th>Band</th><th>Slots</th><th>Spots</th><th>Stations</th><th>Last slot</th></tr></thead><tbody>";
   for(const b of sm.bands)h+=`<tr><td>${esc(b.band)}</td><td>${b.slots}</td><td>${b.spots}</td><td>${b.calls}</td><td>${ago(b.last_ts)} ago</td></tr>`;
   $("bands").innerHTML=h+"</tbody>";
@@ -569,6 +618,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not w:
                     return self._send(404, "no waterfall for this band yet", "text/plain; charset=utf-8")
                 return self._send(200, w["png"], "image/png", {"Cache-Control": "no-cache"})
+            if p == "/api/openings":                                 # band x hour matrix, mine + WSPRnet reference
+                import wsm_openings
+                return self._json(wsm_openings.payload(st.cfg, db, num("days", 30, 0, 3650)))
             if p == "/api/history":                                  # health graphs (never public)
                 hours = num("hours", 24, 1, 24 * 400)
                 bucket = 300 if hours <= 48 else (1800 if hours <= 24 * 8 else 7200)
@@ -606,7 +658,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
 
-PUBLIC_PATHS = {"/", "/index.html", "/api/status", "/api/summary", "/api/spots", "/api/waterfall", "/api/waterfall.png"}
+PUBLIC_PATHS = {"/", "/index.html", "/api/status", "/api/summary", "/api/openings", "/api/spots", "/api/waterfall", "/api/waterfall.png"}
 
 
 def _yes(v):
