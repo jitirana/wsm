@@ -3,7 +3,8 @@
 usage: wsm_antenna_compare.py [DB] [--since "YYYY-MM-DD HH:MM" (UTC)] [--keep-timing]   (DB defaults to ~/wsm/data/wsm.sqlite)
 Per band and antenna: slots listened, spots, spots/h, median SNR, best DX, median input
 peak and mean power. Slots with an "arrival-time rate" warning (the computer was too slow or hot and the
-sample timing was irregular) are skipped unless --keep-timing is given. Compare the same band at similar times of day (propagation changes)."""
+sample timing was irregular) are skipped unless --keep-timing is given. If wsm_peers.py has run, a second table shows the SNR against
+other receivers of the same transmitters (propagation cancels out). Compare the same band at similar times of day (propagation changes)."""
 import sqlite3, sys, os, statistics as st, datetime as dt
 
 import argparse
@@ -52,3 +53,22 @@ for (band, ant, gain), g in sorted(grp.items(), key=lambda kv: (kv[0][0], kv[1][
         dt.datetime.fromtimestamp(g["t1"], dt.timezone.utc).strftime("%m-%d %H:%M")))
 if skipped:
     print("(%d slot(s) with an 'arrival-time rate' warning skipped; use --keep-timing to count them)" % skipped)
+
+# Against the other receivers of the same transmitter (filled by wsm_peers.py from wspr.live): propagation cancels out.
+try:
+    pr = db.execute("""SELECT p.band, COALESCE(sl.antenna,'?'), p.delta, sl.note FROM peer_cmp p JOIN spots sp ON sp.id = p.spot_id
+                       LEFT JOIN slots sl ON sl.id = sp.slot_id WHERE p.delta IS NOT NULL AND p.ts >= ?""", (since,)).fetchall()
+except sqlite3.Error:
+    pr = []
+pg = {}
+for band, ant, d, note in pr:
+    if not opt.keep_timing and "arrival-time rate" in (note or ""):
+        continue
+    pg.setdefault((band, ant), []).append(d)
+if pg:
+    print()
+    print("Against peers (receivers at a similar distance that heard the same transmitter in the same slot): + = better than them")
+    print("%-5s %-4s %6s %9s %7s %7s" % ("band", "ant", "spots", "median_dB", "p25", "p75"))
+    for (band, ant), ds in sorted(pg.items()):
+        ds.sort()
+        print("%-5s %-4s %6d %+9.1f %+7.1f %+7.1f" % (band, ant, len(ds), st.median(ds), ds[int(.25 * len(ds))], ds[min(len(ds) - 1, int(.75 * len(ds)))]))

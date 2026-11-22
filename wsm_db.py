@@ -66,6 +66,18 @@ CREATE TABLE IF NOT EXISTS ref_openings (  -- public WSPRnet reference by band a
     PRIMARY KEY (band, hour)
 );
 CREATE TABLE IF NOT EXISTS ref_meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS peer_cmp (      -- my SNR against the other receivers of the same transmitter (wsm_peers.py)
+    spot_id   INTEGER PRIMARY KEY,
+    ts        INTEGER NOT NULL,
+    band      TEXT NOT NULL,
+    call      TEXT NOT NULL,
+    my_snr    INTEGER,
+    my_km     REAL,
+    n_peers   INTEGER,
+    peer_med  REAL,
+    delta     REAL,                        -- my_snr - peer_med; NULL when there were too few peers
+    checked   INTEGER
+);
 """
 
 

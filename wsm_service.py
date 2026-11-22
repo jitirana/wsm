@@ -23,6 +23,7 @@ import wsm_backup
 import wsm_db
 import wsm_health
 import wsm_openings
+import wsm_peers
 import wsm_dsp
 import wsm_geo
 import wsm_report
@@ -395,6 +396,7 @@ def main():
     wsm_health.start(cfg, db, state, stop, log)
     wsm_backup.start(cfg, stop, log)
     wsm_openings.start(cfg, db, stop, log)
+    wsm_peers.start(cfg, db, stop, log)
     last_prune = time.time()
     while not stop.is_set():
         time.sleep(1)

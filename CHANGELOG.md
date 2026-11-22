@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Peer comparison (`wsm_peers.py`, table `peer_cmp`): my SNR against the median of the receivers at a similar distance that heard the
+  same transmitter in the same slot (wspr.live), per band and antenna. Propagation cancels out, so it is a fair way to compare
+  antennas, gains or a new location. Shown by `tools/wsm_antenna_compare.py`; `wsm_peers.py --run / --show / --test`.
 - One spot per station per slot (`dedup_same_call`, on by default): when the same callsign and locator are decoded several times in a
   slot (the copies a very strong signal leaves at other frequencies, e.g. mains-ripple sidebands) only the best SNR is stored and
   uploaded; the slot note says how many copies were dropped. Hashed callsigns are never merged. The waterfall still labels every decode.

@@ -39,3 +39,5 @@ radios:
 # Band openings panel. The defaults are fine; uncomment to change.
 # openings:
 #   reference: {enabled: yes, days: 14, min_km: 500, radius_deg: 6.0, direction: both}   # WSPRnet (wspr.live) background, once a day
+# peers:                          # my SNR against other receivers of the same transmitter (wspr.live); defaults are fine
+#   enabled: yes

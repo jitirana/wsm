@@ -118,6 +118,26 @@ openings:
 The query is read-only, one request per band spaced by a few seconds, once a day; your own callsign is excluded.
 Test: `python3 wsm_openings.py -c ~/wsm/wsm.yaml --fetch`, then `--show` prints the stored matrix.
 
+## Peer comparison
+Compares this receiver with the others that heard the same station in the same slot (public WSPRnet database, wspr.live), so
+that antennas, gains or a new location can be compared without depending on propagation. For each spot, the receivers at a similar
+distance from that transmitter are the peers; `delta = my SNR - median SNR of the peers` (+ = better than them). All keys optional.
+
+```yaml
+peers:
+  enabled: yes              # needs openings.reference.enabled (same wspr.live access)
+  window_pct: 10            # peers: distance to the transmitter within this % of mine ...
+  window_min_km: 700        # ... or this many km, whichever is larger
+  min_peers: 3              # fewer peers: no delta for that spot
+  delay_min: 30             # look a spot up when it is this old
+  per_cycle: 40             # spots per round, one round every cycle_min minutes
+  cycle_min: 20
+  days: 3                   # ignore spots older than this
+```
+Read-only requests, one per spot, spaced to stay under 20 per minute; only the heard callsign, band and slot time are sent.
+`python3 wsm_peers.py -c ~/wsm/wsm.yaml --run` looks up pending spots now, `--show [--since "YYYY-MM-DD HH:MM"]` prints the
+summary by band and antenna, and `tools/wsm_antenna_compare.py` shows it under its own table.
+
 ## Health monitor and alerts
 
 Alerts are sent with [ntfy](https://ntfy.sh): install the ntfy app on your phone and subscribe to a topic with a long, random
