@@ -51,7 +51,8 @@ def adsb(json_dir):
             _rate["value"] = (n - _rate["n"]) / (now - _rate["t"])
         _rate["t"], _rate["n"] = now, n
     st = _read_json(os.path.join(json_dir, "stats.json")) or {}
-    m1 = (st.get("last1min") or {}).get("messages")
+    l1 = st.get("last1min") or {}
+    m1 = l1.get("messages_valid", l1.get("messages"))                # the name changed between readsb versions
     if isinstance(m1, (int, float)) and m1 > 0:                       # readsb: messages in the last minute
         _rate["value"] = m1 / 60.0
     out = dict(ok=True, aircraft=len(seen), with_pos=len(pos),
