@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12 – Day and night
+- Map: the part of the Earth where it is night now is shaded, with the grey line (sunrise / sunset) and the point where the
+  Sun is overhead; updated every minute, "night" button to switch it off.
+
 ## 1.11
 - False decodes with an impossible locator (e.g. `<...> JZZ8XZ`) are dropped and only noted in the slot log.
 

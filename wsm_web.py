@@ -85,10 +85,10 @@ tr:hover td{background:color-mix(in srgb,var(--chip) 60%,transparent)}
 Each WSPR station is a thin vertical trace about 110 s long; the decoded ones are labelled with their callsign and SNR. Brighter = stronger.</p></div>
 <div class="panel" id="bandsP"><h2><b class="ht">Bands<button class="hq" data-h="bands" aria-label="explain">?</button></b><span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
 <div class="panel" id="mapP"><h2><b class="ht">Map<button class="hq" data-h="map" aria-label="explain">?</button></b><span id="mapInfo"></span></h2>
-<div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
+<div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mNight" class="on" title="shade the part of the Earth where it is night now">night</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
 <div id="map"></div>
 <p class="note">Shows the spots chosen below (period, band, callsign). One dot per station and band, placed at the centre of its 4-character locator square (about +-100 km),
-coloured by band; tap a dot for the details. Map data &copy; OpenStreetMap contributors.</p></div>
+coloured by band; tap a dot for the details. Shaded = night now, the sun symbol = where the Sun is overhead (updated every minute). Map data &copy; OpenStreetMap contributors.</p></div>
 <div class="panel" id="spotsP"><h2><b class="ht">Spots heard<button class="hq" data-h="spots_p" aria-label="explain">?</button></b><span id="cnt"></span></h2>
 <div class="tools">
 <select id="per"><option value="1">last 1 h</option><option value="6">last 6 h</option><option value="24" selected>last 24 h</option><option value="168">last 7 days</option><option value="0">all</option></select>
@@ -118,7 +118,7 @@ const HELP={
  bestall:"The farthest station this receiver has ever heard, with band, date and SNR.",
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
- map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details.",
+ map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
  band:"Amateur band, named by its wavelength: 40m = 7 MHz, 30m = 10 MHz, 20m = 14 MHz, 10m = 28 MHz. Lower bands carry farther at night, higher bands by day.",
@@ -178,7 +178,7 @@ function drawMap(spots,st){
   MAP=L.map("map",{worldCopyJump:true,minZoom:1}).setView(me||[0,0],4);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:12,referrerPolicy:"origin",
    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(MAP);
-  LAYER=L.layerGroup().addTo(MAP)}
+  LAYER=L.layerGroup().addTo(MAP);drawNight()}
  LAYER.clearLayers();
  const agg=new Map();
  for(const r of spots){if(r.lat==null)continue;const k=r.call+"|"+r.band+"|"+r.grid;let a=agg.get(k);
@@ -208,6 +208,28 @@ function drawMap(spots,st){
 $("mLines").addEventListener("click",e=>{showLines=!showLines;e.target.classList.toggle("on",showLines);if(lastSp)drawMap(lastSp,lastSt)});
 $("mRings").addEventListener("click",e=>{showRings=!showRings;e.target.classList.toggle("on",showRings);if(lastSp)drawMap(lastSp,lastSt)});
 $("mFit").addEventListener("click",()=>{mapKey=null;if(lastSp)drawMap(lastSp,lastSt)});
+// ---- day / night: the shade where the Sun is below the horizon now ----
+let NIGHT=null,showNight=true;
+function sunPos(d){                       // subsolar point (lat, lon) in degrees, low-precision almanac (~0.1 deg)
+ const r=Math.PI/180,n=d.getTime()/86400000-10957.5;
+ const L=280.460+0.9856474*n,g=(357.528+0.9856003*n)*r,lam=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*r,eps=(23.439-4e-7*n)*r;
+ const dec=Math.asin(Math.sin(eps)*Math.sin(lam)),ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam));
+ const gmst=(18.697374558+24.06570982441908*n)%24;
+ let lon=ra/r-gmst*15;lon=((lon+540)%360)-180;return [dec/r,lon]}
+function drawNight(){
+ if(!MAP)return;
+ if(!NIGHT)NIGHT=L.layerGroup().addTo(MAP);
+ NIGHT.clearLayers();if(!showNight)return;
+ const r=Math.PI/180,[sl,sn]=sunPos(new Date()),dec=(Math.abs(sl)<0.01?0.01:sl)*r,line=[];
+ for(let lon=-540;lon<=540;lon+=1)line.push([Math.atan(-Math.cos((lon-sn)*r)/Math.tan(dec))/r,lon]);
+ const pole=dec>0?-85:85;                // the pole away from the Sun is in the night
+ const poly=[[pole,-540]].concat(line,[[pole,540]]);
+ L.polygon(poly,{stroke:false,fillColor:"#000",fillOpacity:.28,interactive:false}).addTo(NIGHT);
+ L.polyline(line,{color:"#f0a030",weight:1,opacity:.7,interactive:false}).addTo(NIGHT);
+ for(const k of [-360,0,360])L.marker([sl,sn+k],{icon:L.divIcon({className:"",html:'<div style="font-size:20px;line-height:20px;color:#f5b400;text-shadow:0 0 3px #000">&#9728;</div>',iconSize:[20,20],iconAnchor:[10,10]}),interactive:true})
+  .bindTooltip("Sun overhead now").addTo(NIGHT)}
+setInterval(drawNight,60000);
+$("mNight").addEventListener("click",e=>{showNight=!showNight;e.target.classList.toggle("on",showNight);drawNight()});
 // ---- waterfall of the last slot of each band ----
 let wfBand=null,wfShown=null;
 async function loadWf(){
