@@ -19,6 +19,7 @@ station:
 data_dir: ~/wsm/data        # SQLite database (wsm.sqlite), state files, backups
 keep_days: 0                # delete spots older than N days; 0 = keep everything
 store_own_spots: no         # no: spots of your own callsign (TX = RX) are not stored; their SNR/DT still go to the log
+dedup_same_call: yes       # same callsign + locator decoded several times in one slot (copies of a very strong signal): keep only the best SNR
 debug_keep_iq: 0            # N > 0: keep the decoder input of the last N slots in data/debug/ (~360 kB each, for diagnosis)
 waterfall: yes              # keep a waterfall picture of the last slot of each band (RAM only, ~130 kB per band)
 decode_process: yes         # decode in a separate low-priority process (recommended on a Raspberry Pi)

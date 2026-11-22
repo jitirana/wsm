@@ -22,6 +22,7 @@ DEFAULTS = dict(
         monitor_url="", adsb_url=""),
     adsb=dict(json_dir="/run/readsb"),     # readsb JSON files, for the ADS-B numbers of the landing page
     keep_days=0,                           # 0 = keep every spot
+    dedup_same_call=True,                  # same callsign+locator several times in a slot: keep only the best SNR
     store_own_spots=False,                 # False: spots of the station's own callsign (TX = RX) are not stored
     waterfall=True,                        # picture of the last slot of each band (RAM only)
     radios=[dict(

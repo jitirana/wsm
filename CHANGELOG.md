@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- One spot per station per slot (`dedup_same_call`, on by default): when the same callsign and locator are decoded several times in a
+  slot (the copies a very strong signal leaves at other frequencies, e.g. mains-ripple sidebands) only the best SNR is stored and
+  uploaded; the slot note says how many copies were dropped. Hashed callsigns are never merged. The waterfall still labels every decode.
 - "Band openings" panel (public): bands x 24 hours. Top row of each band = what this receiver decoded (spots per listened hour,
   hatched = never listened); bottom row = reference from the public WSPRnet database (wspr.live) for the region around the
   station, shown while the own data is thin. New module `wsm_openings.py`, `/api/openings?days=`, tables `ref_openings` and `ref_meta`.

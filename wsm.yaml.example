@@ -7,6 +7,7 @@ station:
 data_dir: ~/wsm/data            # SQLite database (wsm.sqlite) and decoder scratch files
 keep_days: 0                    # 0 = keep every spot forever
 store_own_spots: no             # no = your own callsign (TX = RX) is not stored; its SNR/DT still appear in the log
+dedup_same_call: yes            # yes = one spot per callsign+locator per slot (best SNR); drops copies a very strong signal leaves
 debug_keep_iq: 0                # N > 0: keep the last N decoder input files in data/debug/ (45000 IQ samples, ~360 kB each)
 
 web:

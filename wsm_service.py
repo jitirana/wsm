@@ -201,6 +201,10 @@ def process(cfg, db, job, pool=None):
                  off_hz=round(float(sp["freq_mhz"]) * 1e6 - (dial + 1500.0), 1), own=is_own_call(sp.get("call"), own))
             for sp in (spots or []) if sp.get("freq_mhz") is not None])
         WATERFALLS[band] = wf
+    if _yes(cfg.get("dedup_same_call", True)):         # a very strong signal leaves weaker copies of itself in other frequencies
+        spots, copies = merge_copies(spots)
+        if copies:
+            note = (note + " " if note else "") + f"copies of the same call dropped: {copies}"
     if cov < 0.9:
         status = "partial"
         note = (note + " " if note else "") + f"slot covered {cov * 100:.0f} %"
@@ -219,6 +223,26 @@ def process(cfg, db, job, pool=None):
     sid = db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note)
     n = db.add_spots(sid, slot, band, spots) if spots else 0
     return n, note
+
+
+def merge_copies(spots):
+    """-> (kept, n_dropped). One station is in one place: when the same callsign and locator are decoded several times in a slot
+    (the copies a very strong signal leaves at other frequencies, e.g. mains-ripple sidebands) only the best SNR is kept.
+    Hashed callsigns ("<...>") are not one station, so they are never merged."""
+    best, order = {}, []
+    for sp in spots or []:
+        call, loc = (sp.get("call") or "").strip().upper(), (sp.get("loc") or "").strip().upper()
+        if not call or call.startswith("<"):
+            order.append(sp)
+            continue
+        k = (call, loc)
+        if k not in best:
+            best[k] = sp
+            order.append(sp)
+        elif (sp.get("snr") if sp.get("snr") is not None else -999) > (best[k].get("snr") if best[k].get("snr") is not None else -999):
+            order[order.index(best[k])] = sp
+            best[k] = sp
+    return order, len(spots or []) - len(order)
 
 
 def split_false_decodes(spots):
