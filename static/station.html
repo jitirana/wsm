@@ -133,7 +133,7 @@ async function load(){
  const ad=d.adsb||{};
  if(!ad.ok){$("aNow").textContent="–";$("aNowS").textContent="receiver offline";$("aRate").textContent="–";$("aFar").textContent="–";$("aFarS").textContent=""}
  else{$("aNow").textContent=ad.aircraft;$("aNowS").textContent=ad.with_pos+" with position";
-  $("aRate").textContent=ad.msg_rate==null?"…":ad.msg_rate.toFixed(0);
+  $("aRate").textContent=ad.msg_rate==null?"…":ad.msg_rate.toFixed(ad.msg_rate<10?1:0);
   $("aFar").textContent=km(ad.farthest_km);
   const f=ad.farthest;$("aFarS").textContent=f?[f.flight,f.alt_ft!=null?f.alt_ft.toLocaleString("en-US")+" ft":null].filter(Boolean).join(" · "):""}}
 load();setInterval(load,30000);
