@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10 – Explanations
+- A "?" next to every card, panel title and spot-list column opens a short explanation (SNR, DT, drift, power in dBm,
+  coverage, input level...). Works with a tap on phones; Esc or a tap elsewhere closes it.
+
 ## 1.9 – Waterfall
 - "Last slot · waterfall" panel: frequency across (±150 Hz around dial + 1500 Hz), time downwards, one tab per band, the
   decoded callsigns with their SNR drawn on their traces (own TX dashed). Made from the decoder input, kept in RAM only.

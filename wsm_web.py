@@ -35,6 +35,15 @@ a{color:var(--acc)}
 #wfLabels span.own{border-style:dashed;opacity:.8}
 #wfAxis{grid-row:2;grid-column:2;position:relative;height:30px;font-size:12px;color:var(--mute)}#wfAxis span{position:absolute;top:3px;white-space:nowrap;transform:translateX(-50%)}
 #wfTabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.hq{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;padding:0;margin-left:5px;border-radius:50%;
+ border:1px solid var(--line);background:var(--chip);color:var(--mute);font:700 11px/1 system-ui;vertical-align:1px;cursor:help;text-transform:none}
+.card .k .hq{float:right;margin:0 0 0 6px}
+.hq:hover,.hq.on{border-color:var(--acc);color:var(--acc)}
+#tip{position:fixed;z-index:2000;max-width:min(330px,calc(100vw - 24px));background:var(--card);color:var(--ink);border:1px solid var(--acc);
+ border-radius:10px;padding:9px 12px;font:13.5px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);
+ text-transform:none;letter-spacing:0;white-space:normal;text-align:left}
+#tip b{color:var(--acc)}
+.panel h2 .ht{display:inline-flex;align-items:center}
 .chk{display:inline-flex;align-items:center;gap:5px;color:var(--mute);font-size:14px;cursor:pointer;user-select:none}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .card .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -69,18 +78,18 @@ tr:hover td{background:color-mix(in srgb,var(--chip) 60%,transparent)}
 <header><h1>WSM <small>WSPR System Monitor</small></h1><span id="who" class="mute"></span>
 <span style="flex:1"></span><a href="/about" style="color:var(--acc);text-decoration:none;font-weight:600;margin-right:12px">What is WSPR?</a><span id="upd" class="mute"></span></header>
 <div class="cards" id="cards"></div>
-<div class="panel" id="wfP" style="display:none"><h2>Last slot · waterfall <span id="wfInfo"></span></h2>
+<div class="panel" id="wfP" style="display:none"><h2><b class="ht">Last slot · waterfall<button class="hq" data-h="wf" aria-label="explain">?</button></b><span id="wfInfo"></span></h2>
 <div class="tools" id="wfTabs"></div>
 <div id="wfBox"><div id="wfTime"></div><div id="wfImgW"><img id="wfImg" alt="waterfall of the last slot"><div id="wfLabels"></div></div><div id="wfAxis"></div></div>
 <p class="note">What the receiver heard in the last 2-minute slot of the band: frequency across (the 200 Hz WSPR window), time downwards.
 Each WSPR station is a thin vertical trace about 110 s long; the decoded ones are labelled with their callsign and SNR. Brighter = stronger.</p></div>
-<div class="panel" id="bandsP"><h2>Bands <span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
-<div class="panel" id="mapP"><h2>Map <span id="mapInfo"></span></h2>
+<div class="panel" id="bandsP"><h2><b class="ht">Bands<button class="hq" data-h="bands" aria-label="explain">?</button></b><span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
+<div class="panel" id="mapP"><h2><b class="ht">Map<button class="hq" data-h="map" aria-label="explain">?</button></b><span id="mapInfo"></span></h2>
 <div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
 <div id="map"></div>
 <p class="note">Shows the spots chosen below (period, band, callsign). One dot per station and band, placed at the centre of its 4-character locator square (about +-100 km),
 coloured by band; tap a dot for the details. Map data &copy; OpenStreetMap contributors.</p></div>
-<div class="panel" id="spotsP"><h2>Spots heard <span id="cnt"></span></h2>
+<div class="panel" id="spotsP"><h2><b class="ht">Spots heard<button class="hq" data-h="spots_p" aria-label="explain">?</button></b><span id="cnt"></span></h2>
 <div class="tools">
 <select id="per"><option value="1">last 1 h</option><option value="6">last 6 h</option><option value="24" selected>last 24 h</option><option value="168">last 7 days</option><option value="0">all</option></select>
 <select id="bandSel"><option value="">all bands</option></select>
@@ -93,10 +102,49 @@ coloured by band; tap a dot for the details. Map data &copy; OpenStreetMap contr
 1 s after the even minute. The locator link opens Google Maps at the centre of the locator square (WSPR sends 4 characters: about +-100 km).
 Distance and bearing are from the station locator.</p></div>
 </main>
+<div id="tip" role="tooltip" hidden></div>
 <script src="static/leaflet.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// ---- "?" explanations: tap or click a "?" next to a title ----
+const HELP={
+ radio:"State of the receiver. <b>listening</b> = recording a 2-minute slot; <b>opening</b> = starting the radio; <b>error</b> = see the log. Below: band of this slot, antenna input and time to the next slot. WSM listens to one band per slot, following the rotation (or the day/night schedule) in wsm.yaml.",
+ level:"Strongest sample of the last slot, as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>mean</b> is the average power in dB (relative): useful to compare the noise of bands and antennas.",
+ system:"Health of the computer: CPU temperature, CPU clock (a Raspberry Pi slows down when hot or under-powered), power supply and <b>coverage</b>, the share of the samples actually recorded in the slots of the last hour. Below 100 % the computer is losing samples and weak stations are missed. Hover the card for details.",
+ spots:"A <b>spot</b> is one decoded transmission: one station heard in one 2-minute slot. A station heard in 10 slots gives 10 spots. The period is the one chosen above the spot list.",
+ stations:"How many <b>different callsigns</b> were decoded in the period.",
+ bestdx:"The farthest station heard in the period: distance from this station to the centre of the other station's locator square (about +-100 km). Your own transmitter never counts.",
+ bestall:"The farthest station this receiver has ever heard, with band, date and SNR.",
+ wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
+ bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
+ map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details.",
+ spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
+ time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
+ band:"Amateur band, named by its wavelength: 40m = 7 MHz, 30m = 10 MHz, 20m = 14 MHz, 10m = 28 MHz. Lower bands carry farther at night, higher bands by day.",
+ freq:"Exact frequency of the received signal, MHz. All WSPR stations of a band share a 200 Hz window (dial + 1400 to 1600 Hz) and pick different spots in it.",
+ snr:"Signal-to-noise ratio in dB, in a 2500 Hz bandwidth (the WSJT-X convention). <b>Negative is normal</b>: WSPR decodes down to about -28 dB, far below what the ear can hear in the noise. -10 dB is a strong signal.",
+ dt:"Time offset in seconds: how late (+) or early (-) the transmission started against the nominal start, 1 s after the even minute. Within +-1 s is normal. A large DT on every spot means this receiver's clock (or clock_offset_s) is off; on one station only, that station's clock is wrong.",
+ drift:"How much the transmitter frequency changed during the 2 minutes, Hz per minute. 0 is ideal; 1 to 4 usually means a transmitter warming up or an oscillator without temperature control.",
+ call:"Callsign of the transmitting station. In angle brackets (&lt;PY2ABC&gt;) = a long or compound callsign, sent as a short code and resolved from an earlier message.",
+ loc:"Maidenhead locator sent by the station: 4 characters = a square of 1 x 2 degrees, about 110 x 220 km. The link opens the centre of the square on Google Maps.",
+ power:"Power the transmitter says it uses, in dBm: 10 dBm = 10 mW, 23 = 200 mW, 30 = 1 W, 37 = 5 W. A few hundred milliwatts heard thousands of km away is common with WSPR.",
+ dist:"Great-circle distance from this station, km. From locator centres, so about +-100 km.",
+ brg:"Bearing: the direction from this station towards the transmitter, degrees from true north (0 = N, 90 = E, 180 = S, 270 = W)."};
+const hq=k=>`<button class="hq" data-h="${k}" aria-label="explain">?</button>`;
+let tipBtn=null;
+function tipClose(){$("tip").hidden=true;if(tipBtn)tipBtn.classList.remove("on");tipBtn=null}
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".hq");
+ if(!b){if(!e.target.closest("#tip"))tipClose();return}
+ e.preventDefault();e.stopPropagation();
+ if(tipBtn&&tipBtn.dataset.h===b.dataset.h&&!$("tip").hidden){tipClose();return}
+ tipClose();const t=$("tip");t.innerHTML=HELP[b.dataset.h]||"";t.hidden=false;tipBtn=b;b.classList.add("on");
+ const r=b.getBoundingClientRect(),w=t.offsetWidth,h=t.offsetHeight;
+ t.style.left=Math.max(12,Math.min(innerWidth-w-12,r.left+r.width/2-w/2))+"px";
+ t.style.top=(r.bottom+8+h<innerHeight?r.bottom+8:Math.max(8,r.top-8-h))+"px"});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")tipClose()});
+addEventListener("scroll",tipClose,{passive:true});addEventListener("resize",tipClose);
 const fmtT=t=>{const d=new Date(t*1000);return d.toISOString().slice(0,16).replace("T"," ")};
 const ago=t=>{const s=Math.max(0,Math.round(Date.now()/1000-t));return s<90?s+" s":s<5400?Math.round(s/60)+" min":(s/3600).toFixed(1)+" h"};
 function q(){const h=+$("per").value,b=$("bandSel").value,c=$("callQ").value.trim();
@@ -194,24 +242,24 @@ async function load(){
   let cards="";
   for(const r of st.radios){
     const cls=r.state==="listening"?"ok":(r.state==="error"?"bad":"mute");
-    cards+=`<div class="card"><div class="k">${esc(r.name)}</div><div class="v ${cls}">${esc(r.state)}</div><div class="s">${esc(r.band||"-")}${r.antenna?" · ant "+esc(r.antenna):""}${r.next_ts?" · next slot in "+Math.max(0,Math.round(r.next_ts-Date.now()/1000))+" s":""}</div></div>`}
+    cards+=`<div class="card"><div class="k">${hq("radio")}${esc(r.name)}</div><div class="v ${cls}">${esc(r.state)}</div><div class="s">${esc(r.band||"-")}${r.antenna?" · ant "+esc(r.antenna):""}${r.next_ts?" · next slot in "+Math.max(0,Math.round(r.next_ts-Date.now()/1000))+" s":""}</div></div>`}
   const ls=sm.last_slot;
   let lv="-",lcls="mute",lsub="";
   if(ls&&ls.peak!=null){lv=(ls.peak*100).toFixed(0)+" %";lcls=ls.peak>0.9?"bad":(ls.peak>0.5?"warn":"ok");lsub=ls.band+" · mean "+(ls.rms_db||0).toFixed(0)+" dB"+(ls.peak>0.9?" · OVERLOAD: lower the gain":"")}
-  cards+=`<div class="card"><div class="k">Input level (peak)</div><div class="v ${lcls}">${lv}</div><div class="s">${esc(lsub)}</div></div>`;
+  cards+=`<div class="card"><div class="k">${hq("level")}Input level (peak)</div><div class="v ${lcls}">${lv}</div><div class="s">${esc(lsub)}</div></div>`;
   if(sy&&sy.temp_c!=null){                                      // computer health: temperature, clock, power, slot coverage
    const ev=sy.uv_events_1h, cov=sy.coverage_1h;
    const pw=sy.power_data?(sy.uv_now?"UNDER-VOLTAGE now":(ev>0?ev+" UV/h":"power OK")):"";
    const bad=sy.uv_now||ev>=10||(cov!=null&&cov<95)||sy.temp_c>75, warn=ev>0||(cov!=null&&cov<100)||sy.temp_c>65;
    const tip=[sy.pi||"",sy.throttled_hex?"throttled "+sy.throttled_hex:"",sy.temp_max_1h!=null?"max "+sy.temp_max_1h.toFixed(1)+" °C in 1 h":"",
      sy.low_clock_pct_1h!=null?"CPU below 1 GHz "+sy.low_clock_pct_1h+" % of 1 h":"",sy.slots_1h?sy.partial_1h+" of "+sy.slots_1h+" slots incomplete in 1 h":""].filter(Boolean).join(" · ");
-   cards+=`<div class="card" title="${esc(tip)}"><div class="k">System</div><div class="v ${bad?"bad":(warn?"warn":"ok")}">${sy.temp_c.toFixed(0)} °C</div><div class="s">${sy.clock_mhz?sy.clock_mhz+" MHz":""}${pw?" · "+esc(pw):""}${cov!=null?" · coverage "+cov.toFixed(0)+" %":""}</div></div>`}
-  cards+=`<div class="card"><div class="k">Spots</div><div class="v">${sm.spots}</div><div class="s">${per}</div></div>`;
-  cards+=`<div class="card"><div class="k">Stations</div><div class="v">${sm.calls}</div><div class="s">different callsigns</div></div>`;
+   cards+=`<div class="card" title="${esc(tip)}"><div class="k">${hq("system")}System</div><div class="v ${bad?"bad":(warn?"warn":"ok")}">${sy.temp_c.toFixed(0)} °C</div><div class="s">${sy.clock_mhz?sy.clock_mhz+" MHz":""}${pw?" · "+esc(pw):""}${cov!=null?" · coverage "+cov.toFixed(0)+" %":""}</div></div>`}
+  cards+=`<div class="card"><div class="k">${hq("spots")}Spots</div><div class="v">${sm.spots}</div><div class="s">${per}</div></div>`;
+  cards+=`<div class="card"><div class="k">${hq("stations")}Stations</div><div class="v">${sm.calls}</div><div class="s">different callsigns</div></div>`;
   const bd=sm.best;
-  cards+=`<div class="card"><div class="k">Best DX · ${all?"all":esc(per)}</div><div class="v">${bd?Math.round(bd.dist_km)+" km":"-"}</div><div class="s">${bd?esc(bd.call)+" · "+esc(bd.grid)+" · "+esc(bd.band):"no DX in this period"}</div></div>`;
+  cards+=`<div class="card"><div class="k">${hq("bestdx")}Best DX · ${all?"all":esc(per)}</div><div class="v">${bd?Math.round(bd.dist_km)+" km":"-"}</div><div class="s">${bd?esc(bd.call)+" · "+esc(bd.grid)+" · "+esc(bd.band):"no DX in this period"}</div></div>`;
   const ba=sm.best_all;
-  cards+=`<div class="card"><div class="k">Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
+  cards+=`<div class="card"><div class="k">${hq("bestall")}Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
   $("cards").innerHTML=cards;
   loadWf();
   let h="<thead><tr><th>Band</th><th>Slots</th><th>Spots</th><th>Stations</th><th>Last slot</th></tr></thead><tbody>";
@@ -219,7 +267,7 @@ async function load(){
   $("bands").innerHTML=h+"</tbody>";
   const sel=$("bandSel"),cur=sel.value;
   if(sel.options.length<=1){for(const b of st.bands){const o=document.createElement("option");o.value=b;o.textContent=b;sel.appendChild(o)}sel.value=cur}
-  h="<thead><tr><th>Time (UTC)</th><th>Band</th><th>Freq (MHz)</th><th>SNR</th><th>DT</th><th>Drift</th><th class='l'>Call</th><th class='l'>Locator</th><th>Power</th><th>Dist (km)</th><th>Brg</th></tr></thead><tbody>";
+  h=`<thead><tr><th>Time (UTC)${hq("time")}</th><th>Band${hq("band")}</th><th>Freq (MHz)${hq("freq")}</th><th>SNR${hq("snr")}</th><th>DT${hq("dt")}</th><th>Drift${hq("drift")}</th><th class='l'>Call${hq("call")}</th><th class='l'>Locator${hq("loc")}</th><th>Power${hq("power")}</th><th>Dist (km)${hq("dist")}</th><th>Brg${hq("brg")}</th></tr></thead><tbody>`;
   for(const r of sp.spots){
    const loc=r.map?`<a href="${esc(r.map)}" target="_blank" rel="noopener" title="open in Google Maps">${esc(r.grid)}</a>`:esc(r.grid);
    h+=`<tr><td title="${esc(new Date(r.ts*1000).toLocaleString())}">${fmtT(r.ts)}</td><td>${esc(r.band)}</td><td>${(r.freq_hz/1e6).toFixed(6)}</td><td>${r.snr}</td><td>${r.dt==null?"":r.dt.toFixed(1)}</td><td>${r.drift}</td><td class="l"><b>${esc(r.call)}</b></td><td class="l">${loc}</td><td>${r.power_dbm==null?"":r.power_dbm+" dBm"}</td><td>${r.dist_km==null?"":Math.round(r.dist_km)}</td><td>${r.bearing==null?"":Math.round(r.bearing)+"°"}</td></tr>`}

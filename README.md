@@ -15,7 +15,8 @@ Station PU2TKN, grid HI03 (north-east Brazil).
 - **Raspberry Pi friendly** – DSP in blocks (about 85 MB per slot instead of 370 MB), decoding in a separate low-priority process,
   scratch files in RAM (`/dev/shm`) so the SD card is spared.
 - **Web page** – receiver state, input level, system health, spots, stations, best DX (period and all-time), band table,
-  Leaflet map with great-circle lines, spot list with filters and CSV export, light/dark theme. Read-only, protected by a key.
+  Leaflet map with great-circle lines, spot list with filters and CSV export, light/dark theme, a "?" explanation on
+  every card and column. Read-only, protected by a key.
 - **Waterfall** – a picture of the last 2-minute slot of each band (frequency across, time downwards) with the decoded
   callsigns drawn on their traces, so you can see what the decoder saw, including signals too weak to decode.
 - **"What is WSPR?"** – a public, bilingual (English / Portuguese) page at `/about` that explains the mode to visitors.
