@@ -130,7 +130,7 @@ async function load(){
  $("wBest").textContent=b?km(b.dist_km):"–";$("wBestS").textContent=b?`${b.call} · ${b.grid} · ${b.band}`:"nobody far heard yet today";
  $("wAll").textContent=a?km(a.dist_km):"–";
  $("wAllS").textContent=a?`${a.call} · ${a.grid} · ${a.band}${a.ts?" · "+new Date(a.ts*1000).toISOString().slice(0,10):""}`:"";
- $("wBands").innerHTML=(w.bands_24h||[]).map(x=>`<span class="chip">${esc(x.band)}: ${x.calls} station${x.calls===1?"":"s"}</span>`).join("");
+ $("wBands").innerHTML=(w.bands_24h||[]).filter(x=>x.calls>0).map(x=>`<span class="chip">${esc(x.band)}: ${x.calls} station${x.calls===1?"":"s"}</span>`).join("");
  const ad=d.adsb||{};
  if(!ad.ok){$("aNow").textContent="–";$("aNowS").textContent="receiver offline";$("aRate").textContent="–";$("aFar").textContent="–";$("aFarS").textContent=""}
  else{$("aNow").textContent=ad.aircraft;$("aNowS").textContent=ad.with_pos+" with position";
