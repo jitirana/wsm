@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- `tools/wsm_antenna_compare.py`: compares reception by antenna setting (A / B / HIZ) and gain from the `slots` and `spots`
+  tables: slots, spots per hour, median SNR, best DX, input peak and mean power, per band and period.
+
 ## 1.14 – Health history
 - The computer health is saved every 5 minutes (table `syshist`: temperature, CPU clock, under-voltage).
 - "Health history" panel (key only): CPU temperature with the alert level, lowest CPU clock with under-voltage marks, slot
