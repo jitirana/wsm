@@ -23,6 +23,7 @@ Station PU2TKN, grid HI03 (north-east Brazil).
   station (WSPR and ADS-B numbers, equipment, other projects) on its own host name.
 - **"What is WSPR?"** – a public, bilingual (English / Portuguese) page at `/about` that explains the mode to visitors.
 - **WSPRnet upload** – the same HTTP report WSJT-X uses; your own transmitter is never reported.
+- **Health history** – temperature, CPU clock, under-voltage, slot coverage and noise level per band as graphs (6 h to 30 days).
 - **Health monitor and self-healing** – radio stall/hang detection with automatic restarts, plus alerts for under-voltage,
   temperature, sample loss, disk, database size and clock. See [docs/ALERTS.md](docs/ALERTS.md).
 - **Daily report** – one ntfy message a day with the farthest station heard.
@@ -74,7 +75,7 @@ The web page listens on `http://127.0.0.1:8091/` (local only); publish it with a
 
 `/api/status`, `/api/summary?hours=24[&noown=1]`, `/api/spots?since=EPOCH&band=20m&call=PY*&limit=500[&noown=1]`,
 `/api/slots`, `/api/system`, `/api/waterfall` (last slot per band, decodes with their offset in Hz),
-`/api/waterfall.png?band=20m`, `/api/landing`, `/spots.csv`. All need the web key except `/about`.
+`/api/waterfall.png?band=20m`, `/api/landing`, `/api/history?hours=24`, `/spots.csv`. All need the web key except `/about`.
 
 ## Credits and license
 

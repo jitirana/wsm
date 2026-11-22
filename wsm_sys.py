@@ -17,8 +17,11 @@ import threading
 import time
 from collections import deque
 
+import wsm_db
+
 LOW_CLOCK_MHZ = 1000        # below this the CPU is being held down (600 MHz = under-voltage/throttling); a 3B+ at 60 C runs 1200
 WINDOW_S = 3600
+HIST_S = 300               # one row of history per 5 minutes in the database (table syshist)
 
 
 def _run(args):
@@ -35,6 +38,7 @@ class SysMon:
         self.samples = deque()          # (ts, temp_c, clock_mhz, throttled_int or None)
         self.lock = threading.Lock()
         self.pi = None
+        self.hist_bucket = None
         try:
             self.pi = open("/proc/device-tree/model").read().strip("\x00 \n")
         except OSError:
@@ -69,6 +73,28 @@ class SysMon:
             self.samples.append((now, temp, clk, thr))
             while self.samples and now - self.samples[0][0] > WINDOW_S:
                 self.samples.popleft()
+        b = int(now // HIST_S * HIST_S)
+        if self.hist_bucket is not None and b != self.hist_bucket:
+            self.save_history(self.hist_bucket)
+        self.hist_bucket = b
+
+    def save_history(self, bucket):
+        """write the 5 minutes that start at `bucket` to the database (for the health graphs)"""
+        if self.db is None:
+            return
+        with self.lock:
+            s = [x for x in self.samples if bucket <= x[0] < bucket + HIST_S]
+        temps = [x[1] for x in s if x[1] is not None]
+        clks = [x[2] for x in s if x[2] is not None]
+        thr = [x[3] for x in s if x[3] is not None]
+        if not s:
+            return
+        self.db.add_sys(dict(
+            ts=bucket, samples=len(s),
+            temp_c=round(sum(temps) / len(temps), 1) if temps else None, temp_max=max(temps) if temps else None,
+            clock_mhz=round(sum(clks) / len(clks)) if clks else None, clock_min=round(min(clks)) if clks else None,
+            uv_pct=round(100.0 * sum(1 for t in thr if t & 1) / len(thr), 1) if thr else None,
+            low_clock_pct=round(100.0 * sum(1 for c in clks if c < LOW_CLOCK_MHZ) / len(clks), 1) if clks else None))
 
     # ----- slot coverage from the database -----
     def coverage(self, since):
@@ -80,13 +106,7 @@ class SysMon:
             return None, 0, 0
         tot, partial = 0.0, 0
         for status, note in rows:
-            m = re.search(r"covered (\d+)", note or "")
-            if m:
-                c = float(m.group(1))
-            elif status == "error" and "no samples" in (note or ""):
-                c = 0.0
-            else:
-                c = 100.0
+            c = wsm_db.slot_coverage(status, note)
             partial += c < 100
             tot += c
         return tot / len(rows), len(rows), partial

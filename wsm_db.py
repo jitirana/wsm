@@ -1,4 +1,5 @@
 """wsm_db.py - SQLite storage of the WSM: one row per 2-minute slot that was listened to and one row per decoded spot."""
+import re
 import sqlite3
 import threading
 import time
@@ -43,7 +44,28 @@ CREATE TABLE IF NOT EXISTS spots (
 CREATE INDEX IF NOT EXISTS spots_ts ON spots(ts);
 CREATE INDEX IF NOT EXISTS spots_band ON spots(band, ts);
 CREATE INDEX IF NOT EXISTS spots_call ON spots(call);
+CREATE INDEX IF NOT EXISTS slots_ts ON slots(ts);
+CREATE TABLE IF NOT EXISTS syshist (       -- computer health, one row per 5 minutes (wsm_sys.py)
+    ts        INTEGER PRIMARY KEY,         -- start of the 5 minutes (UTC)
+    temp_c    REAL,                        -- mean CPU temperature
+    temp_max  REAL,
+    clock_mhz REAL,                        -- mean CPU clock
+    clock_min REAL,                        -- lowest CPU clock seen (600 = held down)
+    uv_pct    REAL,                        -- % of the samples with under-voltage
+    low_clock_pct REAL,                    -- % of the samples below 1000 MHz
+    samples   INTEGER
+);
 """
+
+
+def slot_coverage(status, note):
+    """% of the samples of a slot that arrived: from the note "slot covered NN %" (written only below 90 %), else 100"""
+    m = re.search(r"covered (\d+)", note or "")
+    if m:
+        return float(m.group(1))
+    if status == "error" and "no samples" in (note or ""):
+        return 0.0
+    return 100.0
 
 
 class DB:
@@ -137,9 +159,47 @@ class DB:
         with self.lock:
             return [dict(r) for r in self.con.execute("SELECT * FROM slots ORDER BY ts DESC LIMIT ?", (int(limit),))]
 
+    def add_sys(self, row):
+        with self.lock, self.con:
+            self.con.execute("INSERT OR REPLACE INTO syshist (ts,temp_c,temp_max,clock_mhz,clock_min,uv_pct,low_clock_pct,samples) "
+                             "VALUES (:ts,:temp_c,:temp_max,:clock_mhz,:clock_min,:uv_pct,:low_clock_pct,:samples)", row)
+
+    def history(self, since, bucket=300):
+        """health over time for the graphs: computer (syshist) and slots (coverage, input level per band).
+        bucket: seconds per point; 300 keeps every 5-minute row and every slot."""
+        b = max(300, int(bucket))
+        with self.lock:
+            sysrows = [dict(r) for r in self.con.execute(
+                "SELECT (ts/?)*? ts, ROUND(AVG(temp_c),1) temp_c, MAX(temp_max) temp_max, ROUND(AVG(clock_mhz)) clock_mhz, "
+                "MIN(clock_min) clock_min, MAX(uv_pct) uv_pct, ROUND(AVG(low_clock_pct),1) low_clock_pct "
+                "FROM syshist WHERE ts>=? GROUP BY ts/? ORDER BY 1", (b, b, int(since), b))]
+            slots = self.con.execute("SELECT ts, band, peak, rms_db, status, note, n_spots FROM slots WHERE ts>=? ORDER BY ts",
+                                     (int(since),)).fetchall()
+        out = []
+        if b <= 300:
+            for r in slots:
+                out.append(dict(ts=r["ts"], band=r["band"], peak=r["peak"], rms_db=r["rms_db"],
+                                cov=slot_coverage(r["status"], r["note"]), spots=r["n_spots"]))
+        else:                                                  # long periods: one point per bucket and band
+            agg = {}
+            for r in slots:
+                k = (r["ts"] // b * b, r["band"])
+                a = agg.setdefault(k, dict(ts=k[0], band=k[1], peak=0.0, rms=[], cov=[], spots=0))
+                a["peak"] = max(a["peak"], r["peak"] or 0.0)
+                if r["rms_db"] is not None:
+                    a["rms"].append(r["rms_db"])
+                a["cov"].append(slot_coverage(r["status"], r["note"]))
+                a["spots"] += r["n_spots"] or 0
+            for a in sorted(agg.values(), key=lambda x: (x["ts"], x["band"])):
+                out.append(dict(ts=a["ts"], band=a["band"], peak=a["peak"],
+                                rms_db=round(sum(a["rms"]) / len(a["rms"]), 1) if a["rms"] else None,
+                                cov=round(sum(a["cov"]) / len(a["cov"]), 1), spots=a["spots"]))
+        return dict(sys=sysrows, slots=out, bucket=b)
+
     def prune(self, keep_days):
         if keep_days and keep_days > 0:
             cut = int(time.time() - keep_days * 86400)
             with self.lock, self.con:
                 self.con.execute("DELETE FROM spots WHERE ts<?", (cut,))
                 self.con.execute("DELETE FROM slots WHERE ts<?", (cut,))
+                self.con.execute("DELETE FROM syshist WHERE ts<?", (cut,))

@@ -46,6 +46,14 @@ a{color:var(--acc)}
  text-transform:none;letter-spacing:0;white-space:normal;text-align:left}
 #tip b{color:var(--acc)}
 .panel h2 .ht{display:inline-flex;align-items:center}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+.chart{position:relative;min-width:0}.chart h3{font-size:13px;font-weight:600;margin:0 0 2px;display:flex;justify-content:space-between;gap:8px}
+.chart h3 span{font-weight:400;color:var(--mute)}
+.chart svg{display:block;width:100%;height:150px;overflow:visible}
+.chart .ax{fill:var(--mute);font-size:10px}.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .xh{stroke:var(--mute);stroke-width:1;stroke-dasharray:2 3}
+.chart .tt{position:absolute;top:22px;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 7px;font-size:12px;
+ white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15);display:none;z-index:5}
 .chk{display:inline-flex;align-items:center;gap:5px;color:var(--mute);font-size:14px;cursor:pointer;user-select:none}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .card .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -88,6 +96,10 @@ body.pub #csv{display:none}body.pub #pubTag{display:inline-block}
 <p class="note">What the receiver heard in the last 2-minute slot of the band: frequency across (the 200 Hz WSPR window), time downwards.
 Each WSPR station is a thin vertical trace about 110 s long; the decoded ones are labelled with their callsign and SNR. Brighter = stronger.</p></div>
 <div class="panel" id="bandsP"><h2><b class="ht">Bands<button class="hq" data-h="bands" aria-label="explain">?</button></b><span id="hrsB">last 24 h</span></h2><div class="tw"><table id="bands"></table></div></div>
+<div class="panel" id="histP" style="display:none"><h2><b class="ht">Health history<button class="hq" data-h="hist" aria-label="explain">?</button></b><span id="histInfo"></span></h2>
+<div class="tools"><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
+<div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cLvl"></div></div>
+<p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 <div class="panel" id="mapP"><h2><b class="ht">Map<button class="hq" data-h="map" aria-label="explain">?</button></b><span id="mapInfo"></span></h2>
 <div class="tools"><button id="mLines" class="on" title="great-circle lines from the station">lines</button><button id="mRings" title="distance rings">rings</button><button id="mNight" class="on" title="shade the part of the Earth where it is night now">night</button><button id="mFit" title="zoom to all spots">fit</button><span id="legend"></span></div>
 <div id="map"></div>
@@ -122,6 +134,7 @@ const HELP={
  bestall:"The farthest station this receiver has ever heard, with band, date and SNR.",
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
+ hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise level</b>: mean input power of each slot per band, in dB below full scale; it rises with local interference, falls when a band closes. Gaps = WSM was not running.",
  map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
@@ -234,6 +247,69 @@ function drawNight(){
   .bindTooltip("Sun overhead now").addTo(NIGHT)}
 setInterval(drawNight,60000);
 $("mNight").addEventListener("click",e=>{showNight=!showNight;e.target.classList.toggle("on",showNight);drawNight()});
+// ---- health history graphs ----
+let histH=24,histData=null,histT=0;
+function fmtLocal(t,long){const d=new Date(t*1000);return long?d.toLocaleString([],{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+function chart(id,title,unit,series,o){
+ // series: [{pts:[[t,v]...], color, label}]  o: {t0,t1,ymin,ymax,lines:[{y,label}],marks:[t],step,fmt}
+ const el=$(id),W=Math.max(260,el.clientWidth||400),H=150,L=40,R=8,T=8,B=20,iw=W-L-R,ih=H-T-B;
+ let lo=o.ymin,hi=o.ymax;const all=series.flatMap(s=>s.pts.map(p=>p[1])).filter(v=>v!=null);
+ if(lo==null)lo=all.length?Math.min(...all):0;if(hi==null)hi=all.length?Math.max(...all):1;
+ for(const l of o.lines||[]){hi=Math.max(hi,l.y);lo=Math.min(lo,l.y)}
+ if(hi-lo<1e-9){hi+=1;lo-=1}const pad=(hi-lo)*.08;if(o.ymin==null)lo-=pad;if(o.ymax==null)hi+=pad;
+ const X=t=>L+(t-o.t0)/(o.t1-o.t0)*iw,Y=v=>T+(1-(v-lo)/(hi-lo))*ih;
+ let g="";const ny=4;
+ for(let i=0;i<=ny;i++){const v=lo+(hi-lo)*i/ny,y=Y(v);g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text class="ax" x="${L-4}" y="${y+3}" text-anchor="end">${(o.fmt||(x=>Math.round(x)))(v)}</text>`}
+ const span=o.t1-o.t0,stepX=span<=6*3600?3600:span<=48*3600?6*3600:span<=8*86400?86400:5*86400;
+ const tz=new Date().getTimezoneOffset()*60;
+ for(let t=Math.ceil((o.t0-tz)/stepX)*stepX+tz;t<=o.t1;t+=stepX){const x=X(t);g+=`<line class="gl" x1="${x}" x2="${x}" y1="${T}" y2="${T+ih}"/><text class="ax" x="${x}" y="${H-5}" text-anchor="middle">${stepX>=86400?new Date(t*1000).toLocaleDateString([],{day:"2-digit",month:"2-digit"}):fmtLocal(t)}</text>`}
+ for(const t of o.marks||[])g+=`<rect x="${X(t)-1}" y="${T}" width="${Math.max(2,o.step/(o.t1-o.t0)*iw)}" height="${ih}" fill="#d92d20" opacity=".35"/>`;
+ for(const l of o.lines||[])g+=`<line x1="${L}" x2="${W-R}" y1="${Y(l.y)}" y2="${Y(l.y)}" stroke="#d92d20" stroke-dasharray="5 4" stroke-width="1.2"/><text class="ax" x="${W-R}" y="${Y(l.y)-3}" text-anchor="end" fill="#d92d20">${esc(l.label)}</text>`;
+ for(const s of series){let d="",prev=null;
+  for(const [t,v] of s.pts){if(v==null){prev=null;continue}const x=X(t).toFixed(1),y=Y(Math.max(lo,Math.min(hi,v))).toFixed(1);
+   d+=(prev==null||t-prev>o.step*2.5?"M":"L")+x+" "+y;prev=t}
+  g+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="1.6" stroke-linejoin="round"/>`;
+  if(s.pts.length<400)for(const [t,v] of s.pts)if(v!=null)g+=`<circle cx="${X(t).toFixed(1)}" cy="${Y(Math.max(lo,Math.min(hi,v))).toFixed(1)}" r="1.6" fill="${s.color}"/>`}
+ const legend=series.length>1?series.map(s=>`<span style="color:${s.color}">● ${esc(s.label)}</span>`).join(" "):"";
+ el.innerHTML=`<h3>${esc(title)}<span>${legend}</span></h3><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${g}<line class="xh" y1="${T}" y2="${T+ih}" x1="0" x2="0" visibility="hidden"/></svg><div class="tt"></div>`;
+ const svg=el.querySelector("svg"),xh=el.querySelector(".xh"),tt=el.querySelector(".tt");
+ const move=e=>{const r=svg.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*W;if(px<L||px>W-R){tt.style.display="none";xh.setAttribute("visibility","hidden");return}
+  const t=o.t0+(px-L)/iw*(o.t1-o.t0);let rows=[],best=null;
+  for(const s of series){let nb=null;for(const p of s.pts)if(p[1]!=null&&(nb==null||Math.abs(p[0]-t)<Math.abs(nb[0]-t)))nb=p;
+   if(nb&&Math.abs(nb[0]-t)<=o.step*1.5){rows.push(`<span style="color:${s.color}">●</span> ${series.length>1?esc(s.label)+" ":""}<b>${(o.fmt||(x=>x))(nb[1])}</b> ${unit}`);best=best||nb}}
+  if(!rows.length){tt.style.display="none";return}
+  const x=X(best[0]);xh.setAttribute("x1",x);xh.setAttribute("x2",x);xh.setAttribute("visibility","visible");
+  tt.innerHTML=fmtLocal(best[0],true)+"<br>"+rows.join("<br>");tt.style.display="block";
+  const left=x/W*r.width;tt.style.left=Math.max(0,Math.min(r.width-tt.offsetWidth,left+10))+"px"};
+ svg.addEventListener("pointermove",move);svg.addEventListener("pointerdown",move);
+ svg.addEventListener("pointerleave",()=>{tt.style.display="none";xh.setAttribute("visibility","hidden")})}
+function drawHist(){
+ const d=histData;if(!d)return;
+ const t1=Date.now()/1000,t0=t1-d.hours*3600,st=d.bucket;
+ const sy=d.sys||[],sl=d.slots||[];
+ if(!sy.length&&!sl.length){$("histP").style.display="";for(const id of ["cTemp","cClk","cCov","cLvl"])$(id).innerHTML="";$("cTemp").innerHTML='<p class="mute">No history yet: the first point is written 5 minutes after WSM starts.</p>';return}
+ $("histP").style.display="";
+ const temps=sy.map(r=>r.temp_c).filter(v=>v!=null);
+ $("histInfo").textContent=temps.length?`temperature ${Math.min(...temps).toFixed(0)}–${Math.max(...sy.map(r=>r.temp_max??r.temp_c)).toFixed(0)} °C`:"";
+ chart("cTemp","CPU temperature","°C",[{pts:sy.map(r=>[r.ts,r.temp_c]),color:"#e0702a",label:"mean"},{pts:sy.map(r=>[r.ts,r.temp_max]),color:"#b42318",label:"max"}],
+  {t0,t1,step:st,lines:[{y:d.temp_max_c,label:"alert "+d.temp_max_c+" °C"}],fmt:v=>v.toFixed(0)});
+ chart("cClk","CPU clock (lowest)","MHz",[{pts:sy.map(r=>[r.ts,r.clock_min]),color:"#2e7dd1",label:"lowest"}],
+  {t0,t1,step:st,ymin:0,ymax:Math.ceil(Math.max(1000,...sy.map(r=>r.clock_min||0))/250)*250,marks:sy.filter(r=>r.uv_pct>0).map(r=>r.ts),fmt:v=>Math.round(v)});
+ const slStep=st<=300?120:st;
+ chart("cCov","Slot coverage","%",[{pts:sl.map(r=>[r.ts,r.cov]),color:"#1f7a3d",label:"coverage"}],
+  {t0,t1,step:Math.max(slStep,600),ymin:Math.min(80,...sl.map(r=>r.cov)),ymax:100,lines:[{y:d.coverage_min,label:"alert "+d.coverage_min+" %"}],fmt:v=>v.toFixed(0)});
+ const bands=[...new Set(sl.map(r=>r.band))].sort((a,b)=>BANDS_ORDER.indexOf(a)-BANDS_ORDER.indexOf(b));
+ chart("cLvl","Noise level per band","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b).map(r=>[r.ts,r.rms_db]),color:bandColor(b),label:b})),
+  {t0,t1,step:Math.max(slStep*6,1800),fmt:v=>v.toFixed(0)})}
+async function loadHist(force){
+ if(!document.body.classList.contains("auth"))return;
+ if(!force&&Date.now()-histT<60000){return}
+ histT=Date.now();
+ try{histData=await fetch("api/history?hours="+histH).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("histP").style.display="none";return}
+ drawHist()}
+for(const b of document.querySelectorAll("#histP .tools button"))b.addEventListener("click",()=>{histH=+b.dataset.h;
+ for(const x of document.querySelectorAll("#histP .tools button"))x.classList.toggle("on",x===b);loadHist(true)});
+let rsz;addEventListener("resize",()=>{clearTimeout(rsz);rsz=setTimeout(drawHist,200)});
 // ---- waterfall of the last slot of each band ----
 let wfBand=null,wfShown=null;
 async function loadWf(){
@@ -263,7 +339,7 @@ async function load(){
   const per=all?"all time":$("per").selectedOptions[0].textContent;    // the label as shown in the selector ("last 7 days", not "last 168 h")
   const [st,sm,sp,sy]=await Promise.all([fetch("api/status").then(r=>r.json()),fetch("api/summary?hours="+hrs+($("noOwn").checked?"&noown=1":"")).then(r=>r.json()),fetch("api/spots?"+q()+"&limit=1000").then(r=>r.json()),fetch("api/system").then(r=>r.json()).catch(()=>({}))]);
   const s=st.station,m=st.map;
-  document.body.classList.toggle("pub",!st.auth);
+  document.body.classList.toggle("pub",!st.auth);document.body.classList.toggle("auth",!!st.auth);
   $("who").innerHTML=esc(s.callsign)+" · "+(m?`<a href="${esc(m)}" target="_blank" rel="noopener">${esc(s.grid)}</a>`:esc(s.grid));
   $("hrsB").textContent=per;
   let cards="";
@@ -288,7 +364,7 @@ async function load(){
   const ba=sm.best_all;
   cards+=`<div class="card"><div class="k">${hq("bestall")}Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
   $("cards").innerHTML=cards;
-  loadWf();
+  loadWf();loadHist();
   let h="<thead><tr><th>Band</th><th>Slots</th><th>Spots</th><th>Stations</th><th>Last slot</th></tr></thead><tbody>";
   for(const b of sm.bands)h+=`<tr><td>${esc(b.band)}</td><td>${b.slots}</td><td>${b.spots}</td><td>${b.calls}</td><td>${ago(b.last_ts)} ago</td></tr>`;
   $("bands").innerHTML=h+"</tbody>";
@@ -491,6 +567,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not w:
                     return self._send(404, "no waterfall for this band yet", "text/plain; charset=utf-8")
                 return self._send(200, w["png"], "image/png", {"Cache-Control": "no-cache"})
+            if p == "/api/history":                                  # health graphs (never public)
+                hours = num("hours", 24, 1, 24 * 400)
+                bucket = 300 if hours <= 48 else (1800 if hours <= 24 * 8 else 7200)
+                h = db.history(time.time() - hours * 3600, bucket)
+                hc = st.cfg.get("health") or {}
+                h.update(hours=hours, temp_max_c=float(hc.get("temp_max_c", 75)), coverage_min=float(hc.get("coverage_min", 95)))
+                return self._json(h)
             if p == "/api/system":
                 sm = getattr(st, "sysmon", None)
                 return self._json(sm.snapshot() if sm else {})

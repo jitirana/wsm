@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.14 – Health history
+- The computer health is saved every 5 minutes (table `syshist`: temperature, CPU clock, under-voltage).
+- "Health history" panel (key only): CPU temperature with the alert level, lowest CPU clock with under-voltage marks, slot
+  coverage and noise level per band, for 6 h / 24 h / 7 days / 30 days, values under the pointer. `/api/history?hours=`.
+
 ## 1.13 – Public view and station page
 - `web.public`: visitors without the key get a read-only view (no health card, no CSV, position only to the 6-character
   locator square); a "public view" tag in the header.
