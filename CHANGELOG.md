@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Rotation and schedule entries can pick the antenna of the slot: `20m@A, 20m@HIZ`. `tools/wsm_antenna_compare.py` adds a table with the
+  SNR difference of the same station heard in adjacent slots on two antennas.
 - Peer comparison (`wsm_peers.py`, table `peer_cmp`): my SNR against the median of the receivers at a similar distance that heard the
   same transmitter in the same slot (wspr.live), per band and antenna. Propagation cancels out, so it is a fair way to compare
   antennas, gains or a new location. Shown by `tools/wsm_antenna_compare.py`; `wsm_peers.py --run / --show / --test`.

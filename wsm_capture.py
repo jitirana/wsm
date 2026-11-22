@@ -2,7 +2,7 @@
 wsm_capture.py - radios. Every radio has the same interface:
 
     radio.open()
-    rec = radio.record(band, dial_hz, slot_start, seconds)   -> dict(x, rate, t0, peak, rms_db, gaps, note)
+    rec = radio.record(band, dial_hz, slot_start, seconds[, antenna])   -> dict(x, rate, t0, peak, rms_db, gaps, note)
         x      complex64 stream centred on dial + 1500 Hz + offset_hz
         rate   real sample rate of the stream (S/s)
         t0     UTC time (s) of x[0]
@@ -79,11 +79,11 @@ class RspRadio:
         c.update((self.cfg.get("bands") or {}).get(band) or {})
         return c
 
-    def record(self, band, dial_hz, slot_start, seconds):
+    def record(self, band, dial_hz, slot_start, seconds, antenna=None):
         S, RX, dev = self.S, self.RX, self.dev
         bc = self._band_cfg(band)
         center = dial_hz + 1500.0 + float(bc["offset_hz"])
-        dev.setAntenna(RX, 0, antenna_name(bc["antenna"]))
+        dev.setAntenna(RX, 0, antenna_name(antenna or bc["antenna"]))
         dev.setFrequency(RX, 0, center)
         dev.setGain(RX, 0, float(bc["gain_db"]))
         self.stream = dev.setupStream(RX, S.SOAPY_SDR_CF32)
@@ -166,7 +166,7 @@ class SimRadio:
     def close(self):
         pass
 
-    def record(self, band, dial_hz, slot_start, seconds):
+    def record(self, band, dial_hz, slot_start, seconds, antenna=None):
         import wsm_testsignal as T
         from fractions import Fraction
         from scipy import signal

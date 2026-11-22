@@ -60,8 +60,7 @@ def load(path=None):
             cfg["radios"] = [_merge(copy.deepcopy(DEFAULTS["radios"][0]), r) for r in radios]
     for r in cfg["radios"]:
         for b in r["rotation"]:
-            if b not in BANDS:
-                raise SystemExit(f"unknown band {b!r} in the rotation of radio {r['name']} (known: {', '.join(BANDS)})")
+            check_entry(b, f"the rotation of radio {r['name']}")
         r["_schedule"] = parse_schedule(r.get("schedule"), r["name"])
     cfg["data_dir"] = os.path.expanduser(cfg["data_dir"])
     cfg["decoder"]["path"] = os.path.expanduser(cfg["decoder"]["path"])
@@ -87,6 +86,23 @@ def _minute(txt, name):
     return m
 
 
+ANTENNAS = ("A", "B", "HIZ")
+
+
+def split_entry(entry):
+    """"20m" -> ("20m", None);  "20m@HIZ" -> ("20m", "HIZ"): a rotation entry may pick the antenna input for that slot"""
+    band, _, ant = str(entry).partition("@")
+    return band.strip(), (ant.strip().upper() or None) if _ else None
+
+
+def check_entry(entry, where):
+    band, ant = split_entry(entry)
+    if band not in BANDS:
+        raise SystemExit(f"unknown band {band!r} in {where} (known: {', '.join(BANDS)})")
+    if ant is not None and ant not in ANTENNAS:
+        raise SystemExit(f"unknown antenna {ant!r} in {where} (use {', '.join(ANTENNAS)}, e.g. 20m@HIZ)")
+
+
 def parse_schedule(sched, name="radio"):
     """{"HH[:MM]-HH[:MM]": [bands]} -> [(start_min, end_min, [bands])], validated"""
     out = []
@@ -99,8 +115,7 @@ def parse_schedule(sched, name="radio"):
         if not bands:
             raise SystemExit(f"radio {name}: empty band list for {rng!r} in schedule")
         for band in bands:
-            if band not in BANDS:
-                raise SystemExit(f"unknown band {band!r} in the schedule {rng!r} of radio {name} (known: {', '.join(BANDS)})")
+            check_entry(band, f"the schedule {rng!r} of radio {name}")
         out.append((_minute(a, name) % 1440, _minute(b, name) % 1440, list(bands)))
     return out
 
@@ -115,9 +130,10 @@ def rotation_at(rcfg, ts):
 
 
 def all_bands(rcfg):
-    """every band a radio can visit (plain rotation + schedule), in order of first appearance"""
+    """every band a radio can visit (plain rotation + schedule), in order of first appearance; "20m@HIZ" counts as 20m"""
     out = []
-    for b in list(rcfg["rotation"]) + [x for _, _, bands in rcfg.get("_schedule") or [] for x in bands]:
+    for e in list(rcfg["rotation"]) + [x for _, _, bands in rcfg.get("_schedule") or [] for x in bands]:
+        b = split_entry(e)[0]
         if b not in out:
             out.append(b)
     return out

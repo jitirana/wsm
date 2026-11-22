@@ -72,3 +72,27 @@ if pg:
     for (band, ant), ds in sorted(pg.items()):
         ds.sort()
         print("%-5s %-4s %6d %+9.1f %+7.1f %+7.1f" % (band, ant, len(ds), st.median(ds), ds[int(.25 * len(ds))], ds[min(len(ds) - 1, int(.75 * len(ds)))]))
+
+# Same transmitter heard in two adjacent slots (2 minutes apart) on different antennas, e.g. with the rotation "20m@A, 20m@HIZ":
+# propagation is the same for both, so the SNR difference is the antennas.
+try:
+    pairs = db.execute("""SELECT a.band, sa.antenna, sb.antenna, a.snr, b.snr, COALESCE(sa.note,''), COALESCE(sb.note,'')
+        FROM spots a JOIN spots b ON b.band = a.band AND b.call = a.call AND b.ts = a.ts + 120
+        JOIN slots sa ON sa.id = a.slot_id JOIN slots sb ON sb.id = b.slot_id
+        WHERE a.ts >= ? AND sa.antenna IS NOT sb.antenna AND a.snr IS NOT NULL AND b.snr IS NOT NULL""", (since,)).fetchall()
+except sqlite3.Error:
+    pairs = []
+pg2 = {}
+for band, aa, ab, sna, snb, na, nb in pairs:
+    if not opt.keep_timing and ("arrival-time rate" in na or "arrival-time rate" in nb):
+        continue
+    x, y = sorted([aa or "?", ab or "?"])
+    d = (sna - snb) if (aa or "?") == x else (snb - sna)
+    pg2.setdefault((band, x, y), []).append(d)
+if pg2:
+    print()
+    print("Same station in adjacent slots on two antennas (SNR of the first minus the second):")
+    print("%-5s %-9s %6s %9s %7s %7s" % ("band", "antennas", "pairs", "median_dB", "p25", "p75"))
+    for (band, x, y), ds in sorted(pg2.items()):
+        ds.sort()
+        print("%-5s %-9s %6d %+9.1f %+7.1f %+7.1f" % (band, x + "-" + y, len(ds), st.median(ds), ds[int(.25 * len(ds))], ds[min(len(ds) - 1, int(.75 * len(ds)))]))

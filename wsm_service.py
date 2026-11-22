@@ -174,6 +174,8 @@ def process(cfg, db, job, pool=None):
     """one recorded slot -> database. Returns (n_spots, note). With `pool` (DecodePool) the DSP and decoder run in another process."""
     rc, band, dial, slot, rec = job["rcfg"], job["band"], job["dial"], job["slot"], job["rec"]
     bc = band_cfg(rc, band)
+    if job.get("antenna"):                                 # rotation entry "20m@HIZ" overrides the antenna of the band
+        bc["antenna"] = job["antenna"]
     note = rec.get("note", "")
     status = "ok"
     n = 0
@@ -283,16 +285,16 @@ class RadioWorker(threading.Thread):
                     if last_rot is not None:
                         log(f"[{name}] schedule: rotation is now {'>'.join(rot)}")
                     last_rot, i = rot, 0
-                band = rot[i % len(rot)]
+                band, ant = wsm_config.split_entry(rot[i % len(rot)])      # "20m@HIZ": that slot uses the HIZ input
                 i += 1
                 dial = wsm_config.BANDS[band]
                 self.state.set(name, state="waiting", band=band, next_ts=slot)
                 self.sleep_until(slot - 3)
                 if self.stop_ev.is_set():
                     break
-                self.state.set(name, state="listening", band=band, next_ts=slot + SLOT_S)
-                rec = radio.record(band, dial, slot, RECORD_S)
-                self.jobs.put(dict(rcfg=self.rcfg, band=band, dial=dial, slot=slot, rec=rec))
+                self.state.set(name, state="listening", band=band, next_ts=slot + SLOT_S, antenna=ant or band_cfg(self.rcfg, band)["antenna"])
+                rec = radio.record(band, dial, slot, RECORD_S, ant)
+                self.jobs.put(dict(rcfg=self.rcfg, band=band, dial=dial, slot=slot, rec=rec, antenna=ant))
                 if rec.get("note"):
                     log(f"[{name}] {band}: {rec['note']}")
             except Exception as e:
