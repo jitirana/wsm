@@ -216,12 +216,12 @@ async function loadWf(){
  if(!bands.length){$("wfP").style.display="none";return}
  $("wfP").style.display="";
  if(!wfBand||!d.bands[wfBand])wfBand=bands.reduce((a,b)=>d.bands[b].ts>d.bands[a].ts?b:a);   // default: the newest slot
- $("wfTabs").innerHTML=bands.map(b=>`<button data-b="${esc(b)}" class="${b===wfBand?"on":""}">${esc(b)} · ${fmtT(d.bands[b].ts).slice(11)}Z</button>`).join("");
+ $("wfTabs").innerHTML=bands.map(b=>`<button data-b="${esc(b)}" class="${b===wfBand?"on":""}">${esc(b)} · ${ago(d.bands[b].ts)} ago</button>`).join("");
  for(const el of $("wfTabs").querySelectorAll("button"))el.onclick=()=>{wfBand=el.dataset.b;wfShown=null;loadWf()};
  const w=d.bands[wfBand],key=wfBand+w.ts;
  if(key!==wfShown){$("wfImg").src="api/waterfall.png?band="+encodeURIComponent(wfBand)+"&ts="+w.ts;wfShown=key}
  const span=w.f_hi-w.f_lo,rf=(w.dial+1500)/1e6;
- $("wfInfo").textContent=`${w.band} · ${fmtT(w.ts)} UTC · ${w.decodes.length} decoded · coverage ${w.coverage} %`;
+ $("wfInfo").textContent=`${w.band} · ${new Date(w.ts*1000).toLocaleString([],{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} (${fmtT(w.ts).slice(11)} UTC) · ${w.decodes.length} decoded · coverage ${w.coverage} %`;
  // callsign labels at the start of each trace (WSPR starts ~1 s + DT after the even minute)
  $("wfLabels").innerHTML=w.decodes.map(x=>{const left=(x.off_hz-w.f_lo)/span*100,t=1+(x.dt||0)+3,top=Math.max(0,Math.min(92,(t-w.t0)/w.dt/w.rows*100));
   return `<span class="${x.own?"own":""}" style="left:${left.toFixed(2)}%;top:${top.toFixed(1)}%">${esc(x.call)} ${x.snr} dB</span>`}).join("");
