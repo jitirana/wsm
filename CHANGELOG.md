@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.11
+- False decodes with an impossible locator (e.g. `<...> JZZ8XZ`) are dropped and only noted in the slot log.
+
 ## 1.10 – Explanations
 - Waterfall tabs show how long ago the slot was ("20m · 6 min ago"); the panel title shows local time with UTC beside it.
 - A "?" next to every card, panel title and spot-list column opens a short explanation (SNR, DT, drift, power in dBm,

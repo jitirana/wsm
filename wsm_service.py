@@ -23,6 +23,7 @@ import wsm_backup
 import wsm_db
 import wsm_health
 import wsm_dsp
+import wsm_geo
 import wsm_report
 import wsm_sys
 import wsm_waterfall
@@ -188,6 +189,10 @@ def process(cfg, db, job, pool=None):
             spots, err = run_decoder(cfg, iq, dial), ""
         except Exception as e:
             spots, err = [], str(e)
+    spots, junk = split_false_decodes(spots)
+    if junk:                                           # impossible locator = random bits that passed the checks: not a station
+        note = (note + " " if note else "") + "false decode dropped: " + ", ".join(
+            f"{j.get('call')} {j.get('loc')} {j.get('snr')} dB" for j in junk[:3])
     if wf:                                             # last waterfall of each band, in RAM, for the web page
         own = cfg["station"]["callsign"]
         wf.update(band=band, ts=int(slot), dial=int(dial), coverage=round(cov * 100), decodes=[
@@ -213,6 +218,17 @@ def process(cfg, db, job, pool=None):
     sid = db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note)
     n = db.add_spots(sid, slot, band, spots) if spots else 0
     return n, note
+
+
+def split_false_decodes(spots):
+    """-> (good, junk). A decode whose locator is not a valid Maidenhead square (e.g. "<...> JZZ8XZ") is a false decode:
+    random noise that happened to pass the decoder checks. Real type-3 messages (hashed callsign + 6-character locator)
+    always carry a valid locator, so they are kept."""
+    good, junk = [], []
+    for sp in spots or []:
+        loc = (sp.get("loc") or "").strip()
+        (good if not loc or wsm_geo.grid_to_latlon(loc) is not None else junk).append(sp)
+    return good, junk
 
 
 class RadioWorker(threading.Thread):
