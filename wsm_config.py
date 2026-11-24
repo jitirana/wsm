@@ -14,7 +14,10 @@ BANDS = {
 DEFAULTS = dict(
     station=dict(callsign="PU2TKN", grid="HI03"),
     data_dir="~/wsm/data",                 # SQLite database, decoder scratch files
-    decoder=dict(path="~/wsm/decoder/wsm_decode", hashtable=False),
+    decoder=dict(path="~/wsm/decoder/wsm_decode", hashtable=False,
+                 engine="wsjtx",              # wsjtx: the WSJT-X wsprd (more sensitive); legacy: wsm_decode (rtlsdr-wsprd), also the fallback
+                 wsjtx_path="",               # default: wsprd_wsjtx next to wsm_decode
+                 flags=[]),                   # extra wsprd options for the wsjtx engine, e.g. ["-d"]
     web=dict(enabled=True, host="127.0.0.1", port=8091, token="",
              public=False),                # True: visitors without the key see spots, map and waterfall (not health, not CSV)
     landing=dict(                          # station landing page, served when the request comes for one of `hosts`
@@ -64,6 +67,11 @@ def load(path=None):
         r["_schedule"] = parse_schedule(r.get("schedule"), r["name"])
     cfg["data_dir"] = os.path.expanduser(cfg["data_dir"])
     cfg["decoder"]["path"] = os.path.expanduser(cfg["decoder"]["path"])
+    d = cfg["decoder"]
+    d["wsjtx_path"] = os.path.expanduser(d.get("wsjtx_path") or os.path.join(os.path.dirname(d["path"]), "wsprd_wsjtx"))
+    d["engine"] = str(d.get("engine") or "wsjtx").lower()
+    if d["engine"] not in ("wsjtx", "legacy"):
+        raise SystemExit(f"decoder.engine must be wsjtx or legacy, not {d['engine']!r}")
     return cfg
 
 

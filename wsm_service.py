@@ -8,7 +8,9 @@ import argparse
 import json
 import os
 import queue
+import re
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -52,8 +54,92 @@ def next_slot(now):
     return (int(now) // SLOT_S + 1) * SLOT_S
 
 
-def run_decoder(cfg, iq, dial_hz):
+_ENGINE_WARNED = set()
+
+
+def decoder_engine(cfg):
+    """"wsjtx" (WSJT-X wsprd, default) or "legacy" (wsm_decode); falls back to legacy, once logged, if the wsjtx binary is missing"""
+    d = cfg["decoder"]
+    if d.get("engine", "wsjtx") == "wsjtx":
+        if os.access(d["wsjtx_path"], os.X_OK):
+            return "wsjtx"
+        if "missing" not in _ENGINE_WARNED:
+            _ENGINE_WARNED.add("missing")
+            log(f"decoder: {d['wsjtx_path']} not found (run `make` in the decoder directory); using the older wsm_decode, "
+                f"which is about 5 dB less sensitive")
+    return "legacy"
+
+
+_WSPRD_LINE = re.compile(r"^\s*(\S+)\s+(-?\d+)\s+(-?\d+(?:\.\d+)?)\s+(\d+\.\d+)\s+(-?\d+)\s+(\S.*?)\s*$")
+
+
+def parse_wsprd_output(text):
+    """stdout of the WSJT-X wsprd -> spot dicts like the JSON of wsm_decode (dt already nominal: 0 = starts 1 s after the even minute).
+    Line: `HHMM SNR DT FREQ_MHz DRIFT CALL LOC PWR` (type 1 and 3 messages) or `... CALL PWR` (type 2: compound callsign, no locator)."""
+    spots = []
+    for line in text.splitlines():
+        m = _WSPRD_LINE.match(line)
+        if not m:
+            continue
+        parts = m.group(6).split()
+        if len(parts) == 3:
+            call, loc, pwr = parts
+        elif len(parts) == 2:
+            call, loc, pwr = parts[0], "", parts[1]
+        else:
+            continue
+        spots.append(dict(freq_mhz=float(m.group(4)), snr=int(m.group(2)), dt=round(float(m.group(3)), 1), drift=int(m.group(5)),
+                          call=call, loc=loc, pwr=pwr))
+    return spots
+
+
+def _run_wsjtx(cfg, iq, dial_hz, slot_ts):
+    d = cfg["decoder"]
+    work = os.path.join(cfg["data_dir"], "wsprd")                # wisdom, hash table and the decoder's own logs live here
+    os.makedirs(work, exist_ok=True)
+    for name in ("ALL_WSPR.TXT", "wspr_spots.txt"):              # the decoder only appends to these: keep them small
+        try:
+            if os.path.getsize(os.path.join(work, name)) > 2_000_000:
+                os.unlink(os.path.join(work, name))
+        except OSError:
+            pass
+    tmpdir = "/dev/shm" if os.access("/dev/shm", os.W_OK) else work
+    x = np.ascontiguousarray(iq, np.complex64)
+    peak = max(float(np.abs(x.real).max()), float(np.abs(x.imag).max()), 1e-24)
+    y = np.conj(x * np.float32(0.5 / peak))                       # same -6 dBFS scaling as wsm_decode; the .c2 reader conjugates
+    # the decoder takes date and time from the last 11 characters of the file name: YYMMDD_HHMM
+    stamp = time.strftime("%y%m%d_%H%M", time.gmtime(slot_ts if slot_ts else time.time()))
+    path = os.path.join(tmpdir, f"wsm_dec_{os.getpid()}_{stamp}.c2")
+    try:
+        with open(path, "wb") as f:
+            f.write(b"wsm.c2".ljust(14, b"\0") + struct.pack("<i", 2) + struct.pack("<d", dial_hz / 1e6))
+            f.write(y.astype(np.complex64).tobytes())
+        flags = [] if d.get("hashtable") else ["-H"]
+        flags += [str(a) for a in (d.get("flags") or [])]
+        cmd = [d["wsjtx_path"], "-f", f"{dial_hz / 1e6:.6f}", "-a", work] + flags + [path]
+        p = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=110)
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    if p.returncode != 0:
+        raise RuntimeError(f"decoder exit {p.returncode}: {(p.stderr or p.stdout).strip()[:200]}")
+    return parse_wsprd_output(p.stdout)
+
+
+def run_decoder(cfg, iq, dial_hz, slot_ts=None):
     """iq: 45000 complex64 samples -> list of spot dicts (dt already referred to the nominal start)"""
+    keep = int(cfg.get("debug_keep_iq", 0) or 0)
+    if keep > 0:                                                  # the decoder input, whichever decoder runs (wsm_decode format: float32 I,Q)
+        import glob
+        dd = os.path.join(cfg["data_dir"], "debug")
+        os.makedirs(dd, exist_ok=True)
+        np.ascontiguousarray(iq, np.complex64).tofile(os.path.join(dd, f"iq_{int(dial_hz)}_{int(time.time())}.iq"))
+        for old in sorted(glob.glob(os.path.join(dd, "iq_*.iq")))[:-keep]:
+            os.unlink(old)
+    if decoder_engine(cfg) == "wsjtx":
+        return _run_wsjtx(cfg, iq, dial_hz, slot_ts)
     exe = cfg["decoder"]["path"]
     flags = ["-H"] if cfg["decoder"].get("hashtable") else []
     st = cfg["station"]
@@ -63,14 +149,6 @@ def run_decoder(cfg, iq, dial_hz):
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(np.ascontiguousarray(iq, np.complex64).tobytes())
-        keep = int(cfg.get("debug_keep_iq", 0) or 0)
-        if keep > 0:
-            import glob, shutil
-            dd = os.path.join(cfg["data_dir"], "debug")
-            os.makedirs(dd, exist_ok=True)
-            shutil.copy(path, os.path.join(dd, f"iq_{int(dial_hz)}_{int(time.time())}.iq"))
-            for old in sorted(glob.glob(os.path.join(dd, "iq_*.iq")))[:-keep]:
-                os.unlink(old)
         cmd = [exe, "-f", str(int(dial_hz)), "-c", st["callsign"], "-l", st["grid"]] + flags + [path]
         p = subprocess.run(cmd, cwd=cfg["data_dir"], capture_output=True, text=True, timeout=110)
     finally:
@@ -102,7 +180,7 @@ def _dsp_and_decode(cfg, x_path, rate, t0, slot, offset_hz, dial):
     del x
     wf = make_waterfall(cfg, iq)
     try:
-        return run_decoder(cfg, iq, dial), cov, "", wf
+        return run_decoder(cfg, iq, dial, slot), cov, "", wf
     except Exception as e:
         return [], cov, str(e), wf
 
@@ -190,7 +268,7 @@ def process(cfg, db, job, pool=None):
         iq, cov = wsm_dsp.to_wspr_grid(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]))
         wf = make_waterfall(cfg, iq)
         try:
-            spots, err = run_decoder(cfg, iq, dial), ""
+            spots, err = run_decoder(cfg, iq, dial, slot), ""
         except Exception as e:
             spots, err = [], str(e)
     spots, junk = split_false_decodes(spots)
@@ -364,9 +442,10 @@ def main():
         log("sbm.service is running: SBM and WSM cannot share the RSP2. Stop it first (sudo systemctl stop sbm).")
         return 2
     os.makedirs(cfg["data_dir"], exist_ok=True)
-    if not os.path.exists(cfg["decoder"]["path"]):
-        log(f"decoder not found: {cfg['decoder']['path']} (run `make` in the decoder directory)")
+    if not os.path.exists(cfg["decoder"]["path"]) and not os.path.exists(cfg["decoder"]["wsjtx_path"]):
+        log(f"decoder not found: {cfg['decoder']['wsjtx_path']} (run `make` in the decoder directory)")
         return 2
+    log("decoder: " + {"wsjtx": "WSJT-X wsprd", "legacy": "wsm_decode (older, about 5 dB less sensitive)"}[decoder_engine(cfg)])
     st = cfg["station"]  # PATCH1
     ll = (float(st["lat"]), float(st["lon"])) if st.get("lat") is not None and st.get("lon") is not None else None
     db = wsm_db.DB(os.path.join(cfg["data_dir"], "wsm.sqlite"), st["grid"], ll)

@@ -9,6 +9,12 @@ cfg = wsm_config.load()
 cfg["data_dir"] = tmp
 cfg["store_own_spots"] = True                       # the test decodes PU2TKN = the default station callsign
 cfg["decoder"]["path"] = os.path.join(here, "decoder", "wsm_decode")
+cfg["decoder"]["wsjtx_path"] = os.path.join(here, "decoder", "wsprd_wsjtx")
+cfg["decoder"]["engine"] = os.environ.get("WSM_TEST_ENGINE", "wsjtx")      # wsjtx (default) or legacy
+print("decoder engine:", wsm_service.decoder_engine(cfg))
+_t = wsm_service.parse_wsprd_output("2611 -15  0.3  14.097120  0  PU2TKN HI03 10\n2611 -24  1.2  14.097050 -1  PJ4/K1ABC 37\n"
+                                    "2611 -27 -0.4  14.097200  0  <PU2TKN> HI03mi 33\n<DecodeFinished>\n")
+assert [x["call"] for x in _t] == ["PU2TKN", "PJ4/K1ABC", "<PU2TKN>"] and _t[1]["loc"] == "" and _t[2]["dt"] == -0.4, _t
 cfg["web"].update(port=int(os.environ.get("WSM_TEST_PORT", 8191)))
 r = cfg["radios"][0]
 r["name"] = "sim"

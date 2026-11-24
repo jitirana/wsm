@@ -26,7 +26,10 @@ decode_process: yes         # decode in a separate low-priority process (recomme
 allow_with_sbm: no          # WSM refuses to start while sbm.service (another program using the RSP2) runs
 
 decoder:
-  path: ~/wsm/decoder/wsm_decode
+  engine: wsjtx             # wsjtx: the WSJT-X wsprd (about 5 dB more sensitive); legacy: wsm_decode (rtlsdr-wsprd, the fallback)
+  path: ~/wsm/decoder/wsm_decode          # the legacy decoder
+  wsjtx_path: ""            # default: wsprd_wsjtx in the same directory as `path`
+  flags: []                 # extra options for the WSJT-X wsprd, e.g. ["-d"] (deeper search, a little slower)
   hashtable: no             # yes: let the decoder resolve hashed callsigns (type 3 messages) across slots
 ```
 

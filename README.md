@@ -1,7 +1,7 @@
 # WSM – WSPR System Monitor
 
 WSM turns an **SDRplay RSP2** and a **Raspberry Pi** into a 24/7 WSPR receiving station. It listens to the WSPR bands in turn,
-decodes every 2-minute slot with the WSJT-X decoder, stores the spots in SQLite, reports them to **WSPRnet** and shows them on a
+decodes every 2-minute slot with the WSJT-X decoder (`wsprd`), stores the spots in SQLite, reports them to **WSPRnet** and shows them on a
 live web page with a map. It also watches its own health (power, temperature, lost samples, radio hangs) and sends alerts to
 your phone through **ntfy**.
 
@@ -62,7 +62,7 @@ The web page listens on `http://127.0.0.1:8091/` (local only); publish it with a
 | `wsm_capture.py` | radio drivers: `RspRadio` (SoapySDR / SDRplay) and `SimRadio` (simulation for tests) |
 | `wsm_dsp.py` | stream → 375 S/s complex baseband on the UTC grid, block by block |
 | `wsm_waterfall.py` | waterfall picture (PNG, numpy only) of the last slot of each band |
-| `decoder/` | `wsm_decode` and `wsm_symbols` (C, GPL-3.0, from rtlsdr-wsprd / WSJT-X) |
+| `decoder/` | `wsprd_wsjtx` (WSJT-X wsprd, default), `wsm_decode` (older rtlsdr-wsprd, fallback) and `wsm_symbols` (C, GPL-3.0) |
 | `wsm_db.py`, `wsm_geo.py` | SQLite storage; locator → position, distance, bearing |
 | `wsm_web.py`, `static/` | web page, JSON/CSV API, the `/about` page, the station page (`station.html`) |
 | `wsm_landing.py` | data of the station page: WSPR summary and ADS-B numbers from readsb |

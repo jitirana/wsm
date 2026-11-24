@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Decoder: WSM now runs the WSJT-X `wsprd` (new `decoder/wsjtx/`, built as `decoder/wsprd_wsjtx` by `make`) instead of the 2015-era
+  decoder of rtlsdr-wsprd (`wsm_decode`, still built and used as fallback). Simulated signals in white noise (same samples for both
+  decoders; 100 trials per level, random message, offset and DT, drift 0 or +-1 Hz/min): old decoder 89 % at -24 dB, 64 % at -28 dB,
+  19 % at -30 dB; WSJT-X 100 %, 100 %, 66 % (about 5 dB more sensitivity at 90 % decodes). The old decoder also lost almost every
+  signal that drifts: at -27 dB with a drift of -1 / +2 Hz/min it decoded 5 % / 0 %, WSJT-X 100 % / 100 % (block demodulation and a
+  better candidate search). `decoder.engine: legacy` goes back to the old one. The OSD option of WSJT-X (Fortran) is not built. `debug_keep_iq` works with both.
 - Rotation and schedule entries can pick the antenna of the slot: `20m@A, 20m@HIZ`. `tools/wsm_antenna_compare.py` adds a table with the
   SNR difference of the same station heard in adjacent slots on two antennas.
 - Peer comparison (`wsm_peers.py`, table `peer_cmp`): my SNR against the median of the receivers at a similar distance that heard the
