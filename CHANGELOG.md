@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- WSPRnet upload: a saved `last_id` above the highest spot id in the database (the database was recreated, so the ids start again from 1) used to make
+  every new spot look as already sent, and nothing was uploaded, without any message. The service now notices it at start, logs it and restarts from 0
+  (spots older than `max_age_h` are still never sent). Covered by `wsm_selftest.py`.
 - Decoder: WSM now runs the WSJT-X `wsprd` (new `decoder/wsjtx/`, built as `decoder/wsprd_wsjtx` by `make`) instead of the 2015-era
   decoder of rtlsdr-wsprd (`wsm_decode`, still built and used as fallback). Simulated signals in white noise (same samples for both
   decoders; 100 trials per level, random message, offset and DT, drift 0 or +-1 Hz/min): old decoder 89 % at -24 dB, 64 % at -28 dB,

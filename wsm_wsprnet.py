@@ -141,15 +141,28 @@ def pending(db, st, last_id, now=None):
     return sorted((r for r in rows if r["id"] > last_id), key=lambda r: r["id"])
 
 
-def run_forever(cfg, db, stop, log=print):
-    st = settings(cfg)
+def initial_state(cfg, db, st, log=print):
+    """the saved upload state; a saved last_id above the highest spot id (the database was recreated, so the ids start again
+    from 1) would make every new spot look as already sent, so it restarts from 0"""
     state = _load(cfg)
+    top = _max_id(db)
     if "last_id" not in state:                                       # first start with the upload on: no backlog
-        state["last_id"] = _max_id(db)
+        state["last_id"] = top
         _save(cfg, state)
         log(f"wsprnet: upload on as {st['rcall']} {st['rgrid']}; only new spots are sent")
+    elif state["last_id"] > top:
+        log(f"wsprnet: saved last spot id {state['last_id']} is above the highest id in the database ({top}); "
+            f"the database was recreated, so the upload restarts from 0 (spots older than {st['max_age_h']:g} h are not sent)")
+        state["last_id"] = 0
+        _save(cfg, state)
     else:
         log(f"wsprnet: upload on as {st['rcall']} {st['rgrid']}")
+    return state
+
+
+def run_forever(cfg, db, stop, log=print):
+    st = settings(cfg)
+    state = initial_state(cfg, db, st, log)
     replies_logged = 0
     fails = 0
     while not stop.wait(st["poll_s"] if not fails else min(300, 20 * 2 ** min(fails, 4))):

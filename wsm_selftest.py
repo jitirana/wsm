@@ -37,6 +37,13 @@ for k in range(8):                                  # two full rotations, 8 slot
 print("total", tot)
 for s in db.spots(0):
     print(s["band"], f"{s['freq_hz']/1e6:.6f}", s["snr"], s["dt"], s["call"], s["grid"], s["power_dbm"], round(s["dist_km"] or 0), s["map"])
+import wsm_wsprnet                                  # the saved upload state must follow the database (ids restart from 1 in a new one)
+_st = wsm_wsprnet.settings(cfg); _top = wsm_wsprnet._max_id(db); _lg = []
+wsm_wsprnet._save(cfg, {}); assert wsm_wsprnet.initial_state(cfg, db, _st, _lg.append)["last_id"] == _top
+wsm_wsprnet._save(cfg, {"last_id": _top + 95}); assert wsm_wsprnet.initial_state(cfg, db, _st, _lg.append)["last_id"] == 0 and "recreated" in _lg[-1]
+assert wsm_wsprnet._load(cfg)["last_id"] == 0
+wsm_wsprnet._save(cfg, {"last_id": max(_top - 1, 0)}); assert wsm_wsprnet.initial_state(cfg, db, _st, _lg.append)["last_id"] == max(_top - 1, 0)
+wsm_wsprnet._save(cfg, {}); print("wsprnet state: ok")
 state = wsm_web.State(cfg, ["20m", "40m", "30m", "10m"])
 state.set("sim", state="listening", band="20m", next_ts=time.time() + 60)
 srv = wsm_web.start(cfg, db, state)
