@@ -143,7 +143,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",
 const HELP={
  open:"When each band is <b>open</b>, by hour of the day. Each band has two rows. <b>Green row (me)</b>: what this receiver decoded, spots per hour of listening (darker = more); green outline = listened, nothing heard; hatched = it never listened at that hour (the schedule may skip the band). <b>Orange row (ref)</b>: the public WSPRnet database for stations around you, spots of at least a few hundred km per day, shown while your own data is thin. Hover a cell for numbers: spots, stations, best DX, SNR. The outlined column is the current hour. Times are UTC unless you switch to local.",
  radio:"State of the receiver. <b>listening</b> = recording a 2-minute slot; <b>opening</b> = starting the radio; <b>error</b> = see the log. Below: band of this slot, antenna input and time to the next slot. WSM listens to one band per slot, following the rotation (or the day/night schedule) in wsm.yaml.",
- level:"Strongest sample of the last slot, as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>mean</b> is the average power in dB (relative): useful to compare the noise of bands and antennas.",
+ level:"Strongest sample of the last <b>finished</b> slot (not the one being recorded now, which the radio card shows), as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>mean</b> is the average power in dB (relative): useful to compare the noise of bands and antennas.",
  system:"Health of the computer: CPU temperature, CPU clock (a Raspberry Pi slows down when hot or under-powered), power supply and <b>coverage</b>, the share of the samples actually recorded in the slots of the last hour. Below 100 % the computer is losing samples and weak stations are missed. Hover the card for details.",
  spots:"A <b>spot</b> is one decoded transmission: one station heard in one 2-minute slot. A station heard in 10 slots gives 10 spots. The period is the one chosen above the spot list.",
  stations:"How many <b>different callsigns</b> were decoded in the period.",
@@ -399,10 +399,10 @@ async function load(){
   let cards="";
   for(const r of st.radios){
     const cls=r.state==="listening"?"ok":(r.state==="error"?"bad":"mute");
-    cards+=`<div class="card"><div class="k">${hq("radio")}${esc(r.name)}</div><div class="v ${cls}">${esc(r.state)}</div><div class="s">${esc(r.band||"-")}${r.antenna?" · ant "+esc(r.antenna):""}${r.next_ts?" · next slot in "+Math.max(0,Math.round(r.next_ts-Date.now()/1000))+" s":""}</div></div>`}
+    cards+=`<div class="card"><div class="k">${hq("radio")}${esc(r.name)}</div><div class="v ${cls}">${esc(r.state)}</div><div class="s">${r.state==="listening"&&r.band?"recording ":""}${esc(r.band||"-")}${r.antenna?" · ant "+esc(r.antenna):""}${r.next_ts?" · next slot in "+Math.max(0,Math.round(r.next_ts-Date.now()/1000))+" s":""}</div></div>`}
   const ls=sm.last_slot;
   let lv="-",lcls="mute",lsub="";
-  if(ls&&ls.peak!=null){lv=(ls.peak*100).toFixed(0)+" %";lcls=ls.peak>0.9?"bad":(ls.peak>0.5?"warn":"ok");lsub=ls.band+" · mean "+(ls.rms_db||0).toFixed(0)+" dB"+(ls.peak>0.9?" · OVERLOAD: lower the gain":"")}
+  if(ls&&ls.peak!=null){lv=(ls.peak*100).toFixed(0)+" %";lcls=ls.peak>0.9?"bad":(ls.peak>0.5?"warn":"ok");lsub="last finished slot: "+ls.band+" "+fmtT(ls.ts).slice(11)+" UTC · mean "+(ls.rms_db||0).toFixed(0)+" dB"+(ls.peak>0.9?" · OVERLOAD: lower the gain":"")}
   cards+=`<div class="card"><div class="k">${hq("level")}Input level (peak)</div><div class="v ${lcls}">${lv}</div><div class="s">${esc(lsub)}</div></div>`;
   if(sy&&sy.temp_c!=null){                                      // computer health: temperature, clock, power, slot coverage
    const ev=sy.uv_events_1h, cov=sy.coverage_1h;

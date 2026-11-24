@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Dashboard: the radio card says what is being recorded ("recording 10m"), and the Input level card names the last finished slot with its
+  time ("last finished slot: 30m 20:44 UTC · mean -29 dB"). The two cards used to look contradictory, because the level always lags one slot behind.
 - WSPRnet upload: a saved `last_id` above the highest spot id in the database (the database was recreated, so the ids start again from 1) used to make
   every new spot look as already sent, and nothing was uploaded, without any message. The service now notices it at start, logs it and restarts from 0
   (spots older than `max_age_h` are still never sent). Covered by `wsm_selftest.py`.
