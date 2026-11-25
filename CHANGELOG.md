@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Health history has a **1 h** period next to 6 h / 24 h / 7 days / 30 days, to watch the effect of a change right after making it (a lamp, a power
+  supply, a cable). The time axis gets a mark every 10 minutes, and the per-band charts break lines and answer the hover within 10 minutes instead of
+  30. Same API (`api/history?hours=1`); nothing to migrate. Covered by `wsm_selftest.py`.
 - Noise in the WSPR window: each slot now stores `noise_db`, the noise the decoder works against (median of the spectrum over the +-100 Hz of the
   decoder input, so WSPR signals and carriers do not move it), in dB re full scale in 2500 Hz: signal level = noise + SNR. The old `rms_db` is the power of
   the whole 62 kHz stream and moves with strong signals far from the WSPR window (on 24/11 it read -23 dB while a station was decoded at -22 dB, as if the

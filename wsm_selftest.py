@@ -52,6 +52,13 @@ _c.execute("CREATE TABLE slots (id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, ban
 _c.execute("INSERT INTO slots (ts,band,dial_hz,rms_db) VALUES (1,'20m',14095600,-30)"); _c.commit(); _c.close()
 _d = wsm_db.DB(_old, "HI03"); assert _d.history(0)["slots"][0]["noise_db"] is None
 _d.add_slot(3, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", "", -57.5); assert _d.history(0)["slots"][1]["noise_db"] == -57.5
+import time as _tm, wsm_web                      # Health history "1 h": only the last hour, one point per slot, and the button exists
+_h = wsm_db.DB(os.path.join(tmp, "h1.sqlite"), "HI03"); _now = int(_tm.time()) // 120 * 120
+for _i in range(40):                                  # 80 minutes of 2-minute slots, one band
+    _h.add_slot(_now - _i * 120, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", "", -50.0)
+_r1 = _h.history(_now - 3600, 300)
+assert _r1["bucket"] == 300 and 29 <= len(_r1["slots"]) <= 31 and min(x["ts"] for x in _r1["slots"]) >= _now - 3600, len(_r1["slots"])
+assert 'data-h="1">1 h</button>' in wsm_web.PAGE and "span<=2*3600?600" in wsm_web.PAGE
 print("noise in the WSPR window: ok", [round(v) for v in _ns][:4])
 import wsm_wsprnet                                  # the saved upload state must follow the database (ids restart from 1 in a new one)
 _st = wsm_wsprnet.settings(cfg); _top = wsm_wsprnet._max_id(db); _lg = []

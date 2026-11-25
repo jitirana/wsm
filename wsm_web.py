@@ -130,7 +130,7 @@ coloured by band; tap a dot for the details. Shaded = night now, the sun symbol 
 1 s after the even minute. The locator link opens Google Maps at the centre of the locator square (WSPR sends 4 characters: about +-100 km).
 Distance and bearing are from the station locator.</p></div>
 <div class="panel" id="histP" style="display:none"><h2><b class="ht">Health history<button class="hq" data-h="hist" aria-label="explain">?</button></b><span id="histInfo"></span></h2>
-<div class="tools"><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
+<div class="tools"><button data-h="1">1 h</button><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
 <div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cNoise"></div><div class="chart" id="cLvl"></div></div>
 <p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 </main>
@@ -151,7 +151,7 @@ const HELP={
  bestall:"The farthest station this receiver has ever heard, with band, date and SNR.",
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
- hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running.",
+ hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made (the computer rows are written every 5 minutes, the slot rows every 2 minutes).",
  map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
@@ -277,7 +277,7 @@ function chart(id,title,unit,series,o){
  const X=t=>L+(t-o.t0)/(o.t1-o.t0)*iw,Y=v=>T+(1-(v-lo)/(hi-lo))*ih;
  let g="";const ny=4;
  for(let i=0;i<=ny;i++){const v=lo+(hi-lo)*i/ny,y=Y(v);g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text class="ax" x="${L-4}" y="${y+3}" text-anchor="end">${(o.fmt||(x=>Math.round(x)))(v)}</text>`}
- const span=o.t1-o.t0,stepX=span<=6*3600?3600:span<=48*3600?6*3600:span<=8*86400?86400:5*86400;
+ const span=o.t1-o.t0,stepX=span<=2*3600?600:span<=6*3600?3600:span<=48*3600?6*3600:span<=8*86400?86400:5*86400;
  const tz=new Date().getTimezoneOffset()*60;
  for(let t=Math.ceil((o.t0-tz)/stepX)*stepX+tz;t<=o.t1;t+=stepX){const x=X(t);g+=`<line class="gl" x1="${x}" x2="${x}" y1="${T}" y2="${T+ih}"/><text class="ax" x="${x}" y="${H-5}" text-anchor="middle">${stepX>=86400?new Date(t*1000).toLocaleDateString([],{day:"2-digit",month:"2-digit"}):fmtLocal(t)}</text>`}
  for(const t of o.marks||[])g+=`<rect x="${X(t)-1}" y="${T}" width="${Math.max(2,o.step/(o.t1-o.t0)*iw)}" height="${ih}" fill="#d92d20" opacity=".35"/>`;
@@ -315,13 +315,14 @@ function drawHist(){
  chart("cClk","CPU clock (lowest)","MHz",[{pts:sy.map(r=>[r.ts,r.clock_min]),color:"#2e7dd1",label:"lowest"}],
   {t0,t1,step:st,ymin:0,ymax:Math.ceil(Math.max(1000,...sy.map(r=>r.clock_min||0))/250)*250,marks:sy.filter(r=>r.uv_pct>0).map(r=>r.ts),fmt:v=>Math.round(v)});}
  const slStep=st<=300?120:st;
+ const nStep=d.hours<=2?600:Math.max(slStep*6,1800);          // 1-2 h view: a point every slot or two, so the gap and hover limits are short
  chart("cCov","Slot coverage","%",[{pts:sl.map(r=>[r.ts,r.cov]),color:"#1f7a3d",label:"coverage"}],
   {t0,t1,step:Math.max(slStep,600),ymin:Math.min(80,...sl.map(r=>r.cov)),ymax:100,lines:[{y:d.coverage_min,label:"alert "+d.coverage_min+" %"}],fmt:v=>v.toFixed(0)});
  const bands=[...new Set(sl.map(r=>r.band))].sort((a,b)=>BANDS_ORDER.indexOf(a)-BANDS_ORDER.indexOf(b));
  chart("cNoise","Noise in the WSPR window, per band","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b&&r.noise_db!=null).map(r=>[r.ts,r.noise_db]),color:bandColor(b),label:b})),
-  {t0,t1,step:Math.max(slStep*6,1800),fmt:v=>v.toFixed(0)});
+  {t0,t1,step:nStep,fmt:v=>v.toFixed(0)});
  chart("cLvl","Stream power per band (62 kHz wide)","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b).map(r=>[r.ts,r.rms_db]),color:bandColor(b),label:b})),
-  {t0,t1,step:Math.max(slStep*6,1800),fmt:v=>v.toFixed(0)})}
+  {t0,t1,step:nStep,fmt:v=>v.toFixed(0)})}
 async function loadHist(force){
  if(!document.body.classList.contains("auth"))return;
  if(!force&&Date.now()-histT<60000){return}
