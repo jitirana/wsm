@@ -176,3 +176,35 @@ def level_stats(x):
         acc += float(np.sum(b.real.astype(np.float64) ** 2 + b.imag.astype(np.float64) ** 2))
     p = acc / s.size
     return peak, 10.0 * np.log10(max(p, 1e-20))
+
+
+def noise_floor_db(iq, rate=OUT_RATE, span_hz=100.0, nfft=256):
+    """
+    Noise level in the WSPR window, in dB re full scale in 2500 Hz (the bandwidth of the WSPR SNR figure), or None.
+    iq: the decoder input (375 S/s, centred on dial + 1500 Hz). Welch spectrum of the whole slot, then the MEDIAN over the
+    bins of +-span_hz: a few WSPR signals (4 tones of 1.5 Hz each) or a carrier fill a small part of the bins, so they do not move it.
+    Segments without samples (zeros where the stream did not cover the slot) are left out.
+    Unlike the "mean" of the stream (62 kHz wide, everything the radio hears), this is what the decoder has to work against:
+    signal power in dBFS = noise_floor_db + SNR.
+    """
+    x = np.asarray(iq, np.complex64)
+    hop = nfft // 2
+    n = (x.size - nfft) // hop + 1
+    if n < 8:
+        return None
+    seg = np.lib.stride_tricks.as_strided(x, shape=(n, nfft), strides=(x.strides[0] * hop, x.strides[0]))
+    seg = seg[np.einsum("ij,ij->i", seg.real, seg.real) + np.einsum("ij,ij->i", seg.imag, seg.imag) > 0]
+    if seg.shape[0] < 8:
+        return None
+    w = np.hanning(nfft).astype(np.float32)
+    psd = np.zeros(nfft)                                       # power per bin, full scale^2 / Hz
+    for a in range(0, seg.shape[0], 64):
+        f = np.fft.fft(seg[a:a + 64] * w, axis=1)
+        psd += (np.abs(f) ** 2).sum(axis=0)
+    psd = np.fft.fftshift(psd) / (seg.shape[0] * rate * float((w ** 2).sum()))
+    freqs = np.fft.fftshift(np.fft.fftfreq(nfft, 1.0 / rate))
+    m = psd[np.abs(freqs) <= span_hz]
+    if m.size < 8 or not np.isfinite(m).all():
+        return None
+    med = float(np.median(m))
+    return round(10.0 * np.log10(max(med * 2500.0, 1e-30)), 1)

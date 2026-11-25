@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Noise in the WSPR window: each slot now stores `noise_db`, the noise the decoder works against (median of the spectrum over the +-100 Hz of the
+  decoder input, so WSPR signals and carriers do not move it), in dB re full scale in 2500 Hz: signal level = noise + SNR. The old `rms_db` is the power of
+  the whole 62 kHz stream and moves with strong signals far from the WSPR window (on 24/11 it read -23 dB while a station was decoded at -22 dB, as if the
+  noise were 19 dB lower). The Input level card shows both ("WSPR noise -58 dB · stream -25 dB") and Health history has a new chart per band. Older
+  databases get the column on start (`ALTER TABLE`); old slots stay empty. Tested in `wsm_selftest.py` (level, signals, gaps, migration).
 - Dashboard: the radio card says what is being recorded ("recording 10m"), and the Input level card names the last finished slot with its
   time ("last finished slot: 30m 20:44 UTC · mean -29 dB"). The two cards used to look contradictory, because the level always lags one slot behind.
 - WSPRnet upload: a saved `last_id` above the highest spot id in the database (the database was recreated, so the ids start again from 1) used to make

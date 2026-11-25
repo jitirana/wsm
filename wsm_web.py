@@ -131,7 +131,7 @@ coloured by band; tap a dot for the details. Shaded = night now, the sun symbol 
 Distance and bearing are from the station locator.</p></div>
 <div class="panel" id="histP" style="display:none"><h2><b class="ht">Health history<button class="hq" data-h="hist" aria-label="explain">?</button></b><span id="histInfo"></span></h2>
 <div class="tools"><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
-<div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cLvl"></div></div>
+<div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cNoise"></div><div class="chart" id="cLvl"></div></div>
 <p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 </main>
 <div id="tip" role="tooltip" hidden></div>
@@ -143,7 +143,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",
 const HELP={
  open:"When each band is <b>open</b>, by hour of the day. Each band has two rows. <b>Green row (me)</b>: what this receiver decoded, spots per hour of listening (darker = more); green outline = listened, nothing heard; hatched = it never listened at that hour (the schedule may skip the band). <b>Orange row (ref)</b>: the public WSPRnet database for stations around you, spots of at least a few hundred km per day, shown while your own data is thin. Hover a cell for numbers: spots, stations, best DX, SNR. The outlined column is the current hour. Times are UTC unless you switch to local.",
  radio:"State of the receiver. <b>listening</b> = recording a 2-minute slot; <b>opening</b> = starting the radio; <b>error</b> = see the log. Below: band of this slot, antenna input and time to the next slot. WSM listens to one band per slot, following the rotation (or the day/night schedule) in wsm.yaml.",
- level:"Strongest sample of the last <b>finished</b> slot (not the one being recorded now, which the radio card shows), as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>mean</b> is the average power in dB (relative): useful to compare the noise of bands and antennas.",
+ level:"Strongest sample of the last <b>finished</b> slot (not the one being recorded now, which the radio card shows), as a share of the radio's full scale. Keep it <b>below about 50 %</b>; above 90 % the receiver overloads and invents false signals, so lower <b>gain_db</b>. <b>WSPR noise</b> is the noise in the 200 Hz window of the signals, in dB re full scale in 2500 Hz: the number to compare bands and antennas, because it is what the decoder works against. <b>stream</b> (older slots: <b>mean</b>) is the power of everything the radio hears in about 62 kHz.",
  system:"Health of the computer: CPU temperature, CPU clock (a Raspberry Pi slows down when hot or under-powered), power supply and <b>coverage</b>, the share of the samples actually recorded in the slots of the last hour. Below 100 % the computer is losing samples and weak stations are missed. Hover the card for details.",
  spots:"A <b>spot</b> is one decoded transmission: one station heard in one 2-minute slot. A station heard in 10 slots gives 10 spots. The period is the one chosen above the spot list.",
  stations:"How many <b>different callsigns</b> were decoded in the period.",
@@ -151,7 +151,7 @@ const HELP={
  bestall:"The farthest station this receiver has ever heard, with band, date and SNR.",
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
- hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise level</b>: mean input power of each slot per band, in dB below full scale; it rises with local interference, falls when a band closes. Gaps = WSM was not running.",
+ hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running.",
  map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
@@ -304,7 +304,7 @@ function drawHist(){
  const d=histData;if(!d)return;
  const t1=Date.now()/1000,t0=t1-d.hours*3600,st=d.bucket;
  const sy=d.sys||[],sl=d.slots||[];
- if(!sy.length&&!sl.length){$("histP").style.display="";for(const id of ["cTemp","cClk","cCov","cLvl"])$(id).innerHTML="";$("cTemp").innerHTML='<p class="mute">No history yet: the first point is written 5 minutes after WSM starts.</p>';return}
+ if(!sy.length&&!sl.length){$("histP").style.display="";for(const id of ["cTemp","cClk","cCov","cNoise","cLvl"])$(id).innerHTML="";$("cTemp").innerHTML='<p class="mute">No history yet: the first point is written 5 minutes after WSM starts.</p>';return}
  $("histP").style.display="";
  const temps=sy.map(r=>r.temp_c).filter(v=>v!=null);
  $("histInfo").textContent=temps.length?`temperature ${Math.min(...temps).toFixed(0)}–${Math.max(...sy.map(r=>r.temp_max??r.temp_c)).toFixed(0)} °C`:"";
@@ -318,7 +318,9 @@ function drawHist(){
  chart("cCov","Slot coverage","%",[{pts:sl.map(r=>[r.ts,r.cov]),color:"#1f7a3d",label:"coverage"}],
   {t0,t1,step:Math.max(slStep,600),ymin:Math.min(80,...sl.map(r=>r.cov)),ymax:100,lines:[{y:d.coverage_min,label:"alert "+d.coverage_min+" %"}],fmt:v=>v.toFixed(0)});
  const bands=[...new Set(sl.map(r=>r.band))].sort((a,b)=>BANDS_ORDER.indexOf(a)-BANDS_ORDER.indexOf(b));
- chart("cLvl","Noise level per band","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b).map(r=>[r.ts,r.rms_db]),color:bandColor(b),label:b})),
+ chart("cNoise","Noise in the WSPR window, per band","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b&&r.noise_db!=null).map(r=>[r.ts,r.noise_db]),color:bandColor(b),label:b})),
+  {t0,t1,step:Math.max(slStep*6,1800),fmt:v=>v.toFixed(0)});
+ chart("cLvl","Stream power per band (62 kHz wide)","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b).map(r=>[r.ts,r.rms_db]),color:bandColor(b),label:b})),
   {t0,t1,step:Math.max(slStep*6,1800),fmt:v=>v.toFixed(0)})}
 async function loadHist(force){
  if(!document.body.classList.contains("auth"))return;
@@ -402,7 +404,7 @@ async function load(){
     cards+=`<div class="card"><div class="k">${hq("radio")}${esc(r.name)}</div><div class="v ${cls}">${esc(r.state)}</div><div class="s">${r.state==="listening"&&r.band?"recording ":""}${esc(r.band||"-")}${r.antenna?" · ant "+esc(r.antenna):""}${r.next_ts?" · next slot in "+Math.max(0,Math.round(r.next_ts-Date.now()/1000))+" s":""}</div></div>`}
   const ls=sm.last_slot;
   let lv="-",lcls="mute",lsub="";
-  if(ls&&ls.peak!=null){lv=(ls.peak*100).toFixed(0)+" %";lcls=ls.peak>0.9?"bad":(ls.peak>0.5?"warn":"ok");lsub="last finished slot: "+ls.band+" "+fmtT(ls.ts).slice(11)+" UTC · mean "+(ls.rms_db||0).toFixed(0)+" dB"+(ls.peak>0.9?" · OVERLOAD: lower the gain":"")}
+  if(ls&&ls.peak!=null){lv=(ls.peak*100).toFixed(0)+" %";lcls=ls.peak>0.9?"bad":(ls.peak>0.5?"warn":"ok");lsub="last finished slot: "+ls.band+" "+fmtT(ls.ts).slice(11)+" UTC · "+(ls.noise_db!=null?"WSPR noise "+ls.noise_db.toFixed(0)+" dB · stream "+(ls.rms_db||0).toFixed(0)+" dB":"mean "+(ls.rms_db||0).toFixed(0)+" dB")+(ls.peak>0.9?" · OVERLOAD: lower the gain":"")}
   cards+=`<div class="card"><div class="k">${hq("level")}Input level (peak)</div><div class="v ${lcls}">${lv}</div><div class="s">${esc(lsub)}</div></div>`;
   if(sy&&sy.temp_c!=null){                                      // computer health: temperature, clock, power, slot coverage
    const ev=sy.uv_events_1h, cov=sy.coverage_1h;

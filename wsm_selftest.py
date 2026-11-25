@@ -37,6 +37,22 @@ for k in range(8):                                  # two full rotations, 8 slot
 print("total", tot)
 for s in db.spots(0):
     print(s["band"], f"{s['freq_hz']/1e6:.6f}", s["snr"], s["dt"], s["call"], s["grid"], s["power_dbm"], round(s["dist_km"] or 0), s["map"])
+import numpy as np, sqlite3, wsm_dsp                  # noise in the WSPR window: right level, not moved by signals or a gap; old databases get the column
+_r = np.random.default_rng(3); _n = (_r.normal(size=45000) + 1j * _r.normal(size=45000)) * 2e-3 / np.sqrt(2)
+_truth = 10 * np.log10((2e-3) ** 2 * 2500 / 375)
+_tt = np.arange(45000) / 375.0
+assert abs(wsm_dsp.noise_floor_db(_n) - _truth) < 0.4, (wsm_dsp.noise_floor_db(_n), _truth)
+assert abs(wsm_dsp.noise_floor_db(_n + sum(1e-3 * np.exp(2j * np.pi * f * _tt) for f in (-60.3, -20.1, 15.2, 41.7))) - _truth) < 0.5
+_g = _n.copy(); _g[10000:22000] = 0
+assert abs(wsm_dsp.noise_floor_db(_g) - _truth) < 0.5 and wsm_dsp.noise_floor_db(np.zeros(45000, np.complex64)) is None
+_ns = [r["noise_db"] for r in db.history(0)["slots"]]
+assert _ns and all(v is not None for v in _ns), _ns
+_old = os.path.join(tmp, "old.sqlite"); _c = sqlite3.connect(_old)
+_c.execute("CREATE TABLE slots (id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, band TEXT NOT NULL, dial_hz INTEGER NOT NULL, radio TEXT, antenna TEXT, gain_db REAL, n_spots INTEGER NOT NULL DEFAULT 0, rate_hz REAL, peak REAL, rms_db REAL, status TEXT NOT NULL DEFAULT 'ok', note TEXT, UNIQUE (ts, band))")
+_c.execute("INSERT INTO slots (ts,band,dial_hz,rms_db) VALUES (1,'20m',14095600,-30)"); _c.commit(); _c.close()
+_d = wsm_db.DB(_old, "HI03"); assert _d.history(0)["slots"][0]["noise_db"] is None
+_d.add_slot(3, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", "", -57.5); assert _d.history(0)["slots"][1]["noise_db"] == -57.5
+print("noise in the WSPR window: ok", [round(v) for v in _ns][:4])
 import wsm_wsprnet                                  # the saved upload state must follow the database (ids restart from 1 in a new one)
 _st = wsm_wsprnet.settings(cfg); _top = wsm_wsprnet._max_id(db); _lg = []
 wsm_wsprnet._save(cfg, {}); assert wsm_wsprnet.initial_state(cfg, db, _st, _lg.append)["last_id"] == _top

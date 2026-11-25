@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS slots (
     rate_hz   REAL,                        -- real sample rate of the radio stream
     peak      REAL,                        -- largest |I|,|Q| of the stream (1.0 = full scale): near 1 means overload
     rms_db    REAL,                        -- mean power of the stream, dB re full scale
+    noise_db  REAL,                        -- noise in the WSPR window (decoder input), dB re full scale in 2500 Hz
     status    TEXT NOT NULL DEFAULT 'ok',  -- ok | short | error
     note      TEXT,
     UNIQUE (ts, band)
@@ -99,14 +100,17 @@ class DB:
         self.con.row_factory = sqlite3.Row
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.executescript(SCHEMA)
+        if "noise_db" not in [r[1] for r in self.con.execute("PRAGMA table_info(slots)")]:      # database of an older version
+            with self.con:
+                self.con.execute("ALTER TABLE slots ADD COLUMN noise_db REAL")
         self.my = tuple(my_latlon) if my_latlon else wsm_geo.grid_to_latlon(my_grid)
 
-    def add_slot(self, ts, band, dial_hz, radio, antenna, gain_db, rate_hz, peak, rms_db, status="ok", note=""):
+    def add_slot(self, ts, band, dial_hz, radio, antenna, gain_db, rate_hz, peak, rms_db, status="ok", note="", noise_db=None):
         with self.lock, self.con:
             self.con.execute(
-                "INSERT OR REPLACE INTO slots (ts,band,dial_hz,radio,antenna,gain_db,n_spots,rate_hz,peak,rms_db,status,note) "
-                "VALUES (?,?,?,?,?,?,0,?,?,?,?,?)",
-                (int(ts), band, int(dial_hz), radio, antenna, gain_db, rate_hz, peak, rms_db, status, note))
+                "INSERT OR REPLACE INTO slots (ts,band,dial_hz,radio,antenna,gain_db,n_spots,rate_hz,peak,rms_db,status,note,noise_db) "
+                "VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?)",
+                (int(ts), band, int(dial_hz), radio, antenna, gain_db, rate_hz, peak, rms_db, status, note, noise_db))
             return self.con.execute("SELECT id FROM slots WHERE ts=? AND band=?", (int(ts), band)).fetchone()[0]
 
     def add_spots(self, slot_id, ts, band, spots):
@@ -196,26 +200,29 @@ class DB:
                 "SELECT (ts/?)*? ts, ROUND(AVG(temp_c),1) temp_c, MAX(temp_max) temp_max, ROUND(AVG(clock_mhz)) clock_mhz, "
                 "MIN(clock_min) clock_min, MAX(uv_pct) uv_pct, ROUND(AVG(low_clock_pct),1) low_clock_pct "
                 "FROM syshist WHERE ts>=? GROUP BY ts/? ORDER BY 1", (b, b, int(since), b))]
-            slots = self.con.execute("SELECT ts, band, peak, rms_db, status, note, n_spots FROM slots WHERE ts>=? ORDER BY ts",
+            slots = self.con.execute("SELECT ts, band, peak, rms_db, noise_db, status, note, n_spots FROM slots WHERE ts>=? ORDER BY ts",
                                      (int(since),)).fetchall()
         out = []
         if b <= 300:
             for r in slots:
-                out.append(dict(ts=r["ts"], band=r["band"], peak=r["peak"], rms_db=r["rms_db"],
+                out.append(dict(ts=r["ts"], band=r["band"], peak=r["peak"], rms_db=r["rms_db"], noise_db=r["noise_db"],
                                 cov=slot_coverage(r["status"], r["note"]), spots=r["n_spots"]))
         else:                                                  # long periods: one point per bucket and band
             agg = {}
             for r in slots:
                 k = (r["ts"] // b * b, r["band"])
-                a = agg.setdefault(k, dict(ts=k[0], band=k[1], peak=0.0, rms=[], cov=[], spots=0))
+                a = agg.setdefault(k, dict(ts=k[0], band=k[1], peak=0.0, rms=[], noise=[], cov=[], spots=0))
                 a["peak"] = max(a["peak"], r["peak"] or 0.0)
                 if r["rms_db"] is not None:
                     a["rms"].append(r["rms_db"])
+                if r["noise_db"] is not None:
+                    a["noise"].append(r["noise_db"])
                 a["cov"].append(slot_coverage(r["status"], r["note"]))
                 a["spots"] += r["n_spots"] or 0
             for a in sorted(agg.values(), key=lambda x: (x["ts"], x["band"])):
                 out.append(dict(ts=a["ts"], band=a["band"], peak=a["peak"],
                                 rms_db=round(sum(a["rms"]) / len(a["rms"]), 1) if a["rms"] else None,
+                                noise_db=round(sum(a["noise"]) / len(a["noise"]), 1) if a["noise"] else None,
                                 cov=round(sum(a["cov"]) / len(a["cov"]), 1), spots=a["spots"]))
         return dict(sys=sysrows, slots=out, bucket=b)
 
