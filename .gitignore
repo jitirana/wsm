@@ -8,6 +8,8 @@ data/
 # build output of the decoder
 decoder/*.o
 decoder/wsprd/*.o
+decoder/wsjtx/*.o
+decoder/wsprd_wsjtx
 decoder/wsm_decode
 decoder/wsm_symbols
 

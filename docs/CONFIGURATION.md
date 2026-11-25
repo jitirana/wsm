@@ -26,7 +26,10 @@ decode_process: yes         # decode in a separate low-priority process (recomme
 allow_with_sbm: no          # WSM refuses to start while sbm.service (another program using the RSP2) runs
 
 decoder:
-  path: ~/wsm/decoder/wsm_decode
+  engine: wsjtx             # wsjtx: the WSJT-X wsprd (about 5 dB more sensitive); legacy: wsm_decode (rtlsdr-wsprd, the fallback)
+  path: ~/wsm/decoder/wsm_decode          # the legacy decoder
+  wsjtx_path: ""            # default: wsprd_wsjtx in the same directory as `path`
+  flags: []                 # extra options for the WSJT-X wsprd, e.g. ["-d"] (deeper search, a little slower)
   hashtable: no             # yes: let the decoder resolve hashed callsigns (type 3 messages) across slots
 ```
 
@@ -117,6 +120,21 @@ openings:
 ```
 The query is read-only, one request per band spaced by a few seconds, once a day; your own callsign is excluded.
 Test: `python3 wsm_openings.py -c ~/wsm/wsm.yaml --fetch`, then `--show` prints the stored matrix.
+
+## Alternating antennas (`band@antenna`)
+A rotation or schedule entry can name the antenna input for that slot: `20m@A` or `20m@HIZ` (A, B or HIZ). Alternating the two on
+one band gives the fairest antenna comparison, because both listen to the same band a few minutes apart:
+
+```yaml
+radios:
+  - name: rsp2
+    schedule:
+      "09-21": [20m@A, 20m@HIZ]       # 20 m, antenna A and HIZ in turn, one slot each
+      "21-09": [40m@A, 40m@HIZ]
+```
+An entry without `@` uses the antenna of the radio or of the band, as before. The antenna of each slot is stored in the database, so
+`tools/wsm_antenna_compare.py` can show, besides the usual table, the SNR difference for the same station heard in two adjacent slots
+on different antennas. Keep the same `gain_db` for both and check that the input level stays below about 50 %.
 
 ## Peer comparison
 Compares this receiver with the others that heard the same station in the same slot (public WSPRnet database, wspr.live), so
