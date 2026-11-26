@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS ref_openings (  -- public WSPRnet reference by band a
     PRIMARY KEY (band, hour)
 );
 CREATE TABLE IF NOT EXISTS ref_meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS spurs (         -- steady narrow carriers in the WSPR window of a slot (wsm_dsp.find_spurs)
+    slot_id   INTEGER,
+    ts        INTEGER NOT NULL,            -- start of the slot (UTC)
+    band      TEXT NOT NULL,
+    freq_hz   REAL NOT NULL,               -- RF frequency (dial + 1500 Hz + offset)
+    off_hz    REAL,                        -- Hz from the centre of the WSPR window
+    snr       REAL,                        -- dB in 2500 Hz, the WSPR SNR scale
+    above     REAL,                        -- dB over the typical 0.37 Hz bin
+    persist   REAL                         -- % of the slot in which it stood out
+);
+CREATE INDEX IF NOT EXISTS spurs_ts ON spurs(band, ts);
 CREATE TABLE IF NOT EXISTS events (        -- things the operator did (LED on, fan off, cable moved): marked on the health charts
     id        INTEGER PRIMARY KEY,
     ts        INTEGER NOT NULL,            -- when it happened (UTC, unix seconds)
@@ -210,6 +221,35 @@ class DB:
         with self.lock, self.con:
             self.con.execute("INSERT OR REPLACE INTO syshist (ts,temp_c,temp_max,clock_mhz,clock_min,uv_pct,low_clock_pct,samples,capped_pct) "
                              "VALUES (:ts,:temp_c,:temp_max,:clock_mhz,:clock_min,:uv_pct,:low_clock_pct,:samples,:capped_pct)", row)
+
+    def add_spurs(self, slot_id, ts, band, dial_hz, spurs):
+        with self.lock, self.con:
+            self.con.executemany("INSERT INTO spurs (slot_id, ts, band, freq_hz, off_hz, snr, above, persist) VALUES (?,?,?,?,?,?,?,?)",
+                                 [(slot_id, int(ts), band, float(dial_hz) + 1500.0 + x["off_hz"], x["off_hz"], x["snr"], x["above"],
+                                   x["persist"]) for x in spurs])
+
+    def spur_summary(self, since, tol_hz=1.0, limit=12):
+        """steady carriers grouped by band and frequency (within tol_hz): in how many of the slots of the band each one was
+        seen, its SNR (median and strongest) and when. A carrier seen in most slots is a local source (power supply, LED
+        driver, a clock harmonic); one seen once is more likely a station that sent a plain carrier."""
+        with self.lock:
+            rows = self.con.execute("SELECT ts, band, freq_hz, off_hz, snr FROM spurs WHERE ts>=? ORDER BY band, freq_hz", (int(since),)).fetchall()
+            listened = dict(self.con.execute("SELECT band, COUNT(*) FROM slots WHERE ts>=? AND status!='error' GROUP BY band", (int(since),)).fetchall())
+        groups = []
+        for r in rows:
+            g = groups[-1] if groups else None
+            if g and g["band"] == r["band"] and r["freq_hz"] - g["f"][-1] <= tol_hz:
+                g["f"].append(r["freq_hz"]); g["off"].append(r["off_hz"]); g["snr"].append(r["snr"]); g["ts"].add(r["ts"])
+            else:
+                groups.append(dict(band=r["band"], f=[r["freq_hz"]], off=[r["off_hz"]], snr=[r["snr"]], ts={r["ts"]}))
+        out = []
+        for g in groups:
+            sn = sorted(g["snr"]); n = len(g["ts"]); tot = listened.get(g["band"], 0)
+            out.append(dict(band=g["band"], freq_hz=round(sorted(g["f"])[len(g["f"]) // 2], 1), off_hz=round(sorted(g["off"])[len(g["off"]) // 2], 1),
+                            slots=n, band_slots=tot, pct=round(100.0 * n / tot) if tot else None,
+                            snr_med=sn[len(sn) // 2], snr_max=sn[-1], first=min(g["ts"]), last=max(g["ts"])))
+        out.sort(key=lambda x: (-x["slots"], -x["snr_med"]))
+        return out[:limit]
 
     def thermal_daily(self, since, hist_s=300, tz=time.localtime):
         """thermal health per local day: how long the CPU ran slowed down and whether short slots coincided with it.
@@ -433,4 +473,5 @@ class DB:
                 self.con.execute("DELETE FROM spots WHERE ts<?", (cut,))
                 self.con.execute("DELETE FROM slots WHERE ts<?", (cut,))
                 self.con.execute("DELETE FROM syshist WHERE ts<?", (cut,))
+                self.con.execute("DELETE FROM spurs WHERE ts<?", (cut,))
                 self.con.execute("DELETE FROM nb_heard WHERE ts<?", (cut,))
