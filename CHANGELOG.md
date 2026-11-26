@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Thermal health per day (roadmap item 7): the computer history also saves the share of the samples in which the Raspberry Pi
+  firmware slowed the CPU (`vcgencmd get_throttled` bits 1-3: frequency capped, throttled, soft temperature limit; column
+  `syshist.capped_pct`, added to older databases at start). A "CPU slowdowns per day" table in Health history (key only, local days,
+  last 14) shows the hours recorded, mean and highest temperature, minutes slowed by the firmware, below 1000 MHz and with
+  under-voltage, the slots, the short slots (samples lost) and how many of these overlapped a slowdown. `/api/thermal?days=`.
 - Panels from "Last slot" to "Heard by others, not by me" can be minimized: a small arrow before the title (or a click on the title) folds the
   panel to its header line and opens it again. The choice is kept in this browser (localStorage; another browser or a private window starts
   with everything open). The map and the health charts are redrawn when they open again.

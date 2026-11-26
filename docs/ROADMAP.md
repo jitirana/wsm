@@ -11,7 +11,7 @@ Each item says where it stands. New ideas go to the end of the list.
 | 4 | **Window comparison**: noise per band before and after a change, with the difference in dB, skipping the transition slots | done (Δ next to each event) |
 | 5 | **Automatic noise steps**: "20 m noise rose 2 dB at 08:24 and stayed", with a "mark an event here" button | done ("Noise shifts found", threshold 1.5 dB) |
 | 6 | **Rotation suggested by the data**: weekly report of spots per slot, band and hour against the public reference, suggesting bands to add or drop (suggests only, the operator decides) | waiting: needs 2–3 weeks of data |
-| 7 | **Thermal health**: how long per day the CPU ran slowed down (frequency capped, throttled, soft temperature limit, under-voltage), and whether that coincided with short slots | in progress |
+| 7 | **Thermal health**: how long per day the CPU ran slowed down (frequency capped, throttled, soft temperature limit, under-voltage), and whether that coincided with short slots | done ("CPU slowdowns per day" in Health history) |
 | 8 | **Narrow spur detection**: the faint vertical line in the 20 m waterfall. The `narrowband-noise` branch only added the noise measurement in the WSPR window (merged); the spur detection itself is not done | to do |
 | 9 | Noise axis labels with one decimal when the range is small | done |
 
