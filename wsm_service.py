@@ -175,22 +175,31 @@ def run_decoder(cfg, iq, dial_hz, slot_ts=None):
 
 def _dsp_and_decode(cfg, x_path, rate, t0, slot, offset_hz, dial):
     """runs in the decode PROCESS (see DecodePool): stream file -> 375 S/s grid -> wsm_decode.
-    Returns (spots, coverage, error, waterfall dict or None, noise in the WSPR window in dB or None)."""
+    Returns (spots, coverage, error, waterfall dict or None, noise in the WSPR window in dB or None, narrow spurs: list or None)."""
     x = np.load(x_path, mmap_mode="r")                # read block by block by wsm_dsp: the slot is never copied whole
     iq, cov = wsm_dsp.to_wspr_grid(x, rate, t0, slot, offset_hz)
     del x
     wf = make_waterfall(cfg, iq)
     noise = window_noise(iq)
+    spurs = window_spurs(iq)
     try:
-        return run_decoder(cfg, iq, dial, slot), cov, "", wf, noise
+        return run_decoder(cfg, iq, dial, slot), cov, "", wf, noise, spurs
     except Exception as e:
-        return [], cov, str(e), wf, noise
+        return [], cov, str(e), wf, noise, spurs
 
 
 def window_noise(iq):
     """noise in the WSPR window (dB re full scale in 2500 Hz); never fails the slot"""
     try:
         return wsm_dsp.noise_floor_db(iq)
+    except Exception:
+        return None
+
+
+def window_spurs(iq):
+    """steady narrow carriers in the WSPR window (wsm_dsp.find_spurs); never fails the slot"""
+    try:
+        return wsm_dsp.find_spurs(iq)
     except Exception:
         return None
 
@@ -272,12 +281,13 @@ def process(cfg, db, job, pool=None):
         db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note)
         return 0, note
     if pool is not None:
-        spots, cov, err, wf, noise = pool.run(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]), dial)
+        spots, cov, err, wf, noise, spurs = pool.run(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]), dial)
         rec["x"] = np.zeros(1, np.complex64)          # free the slot now, not when the job is dropped
     else:
         iq, cov = wsm_dsp.to_wspr_grid(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]))
         wf = make_waterfall(cfg, iq)
         noise = window_noise(iq)
+        spurs = window_spurs(iq)
         try:
             spots, err = run_decoder(cfg, iq, dial, slot), ""
         except Exception as e:
@@ -292,6 +302,7 @@ def process(cfg, db, job, pool=None):
             dict(call=sp.get("call"), grid=sp.get("loc"), snr=sp.get("snr"), dt=sp.get("dt"), drift=sp.get("drift"),
                  off_hz=round(float(sp["freq_mhz"]) * 1e6 - (dial + 1500.0), 1), own=is_own_call(sp.get("call"), own))
             for sp in (spots or []) if sp.get("freq_mhz") is not None])
+        wf["spurs"] = spurs or []
         WATERFALLS[band] = wf
     if _yes(cfg.get("dedup_same_call", True)):         # a very strong signal leaves weaker copies of itself in other frequencies
         spots, copies = merge_copies(spots)
@@ -314,6 +325,8 @@ def process(cfg, db, job, pool=None):
                                                    f"DT {m.get('dt')} s, drift {m.get('drift')} (not stored)")
     sid = db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note, noise)
     n = db.add_spots(sid, slot, band, spots) if spots else 0
+    if spurs:
+        db.add_spurs(sid, slot, band, dial, spurs)
     return n, note
 
 

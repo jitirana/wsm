@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- Narrow spurs in the WSPR window (roadmap item 8): every slot is searched for steady carriers (`wsm_dsp.find_spurs`): 0.37 Hz
+  bins, and per bin the median over the 2.7 s frames of the slot, so only a signal present the whole slot counts; a carrier must
+  also hold 70 % of its energy within +-1 Hz, which a WSPR signal (4 tones over 6 Hz) never does. Simulated slots: no false spur in
+  200 slots of noise or 300 slots with 1-5 WSPR signals from -28 to +15 dB; carriers found from about -29 dB (2500 Hz) up,
+  frequency within 0.02 Hz, level within 0.5 dB. ~3 ms per slot. Saved in the new table `spurs` (RF frequency, offset, SNR);
+  "Narrow spurs in the WSPR window" in Health history (key only) groups them by band and frequency with the share of the slots
+  of the band in which each one was seen; the waterfall marks them at the bottom ("spur", key only). `/api/spurs?hours=`.
 - Thermal health per day (roadmap item 7): the computer history also saves the share of the samples in which the Raspberry Pi
   firmware slowed the CPU (`vcgencmd get_throttled` bits 1-3: frequency capped, throttled, soft temperature limit; column
   `syshist.capped_pct`, added to older databases at start). A "CPU slowdowns per day" table in Health history (key only, local days,

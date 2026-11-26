@@ -7,6 +7,8 @@ stream is mixed back down, low-pass filtered and decimated to about 4 kS/s, then
 UTC time axis. The real sample rate of the stream is passed in (it can differ from the requested one by a fraction of a percent
 and a WSPR frame lasts 110 s, so a 0.1 % error would already shift the last symbols by 0.1 s).
 """
+import math
+
 import numpy as np
 from scipy import signal
 from scipy.interpolate import interp1d
@@ -208,3 +210,66 @@ def noise_floor_db(iq, rate=OUT_RATE, span_hz=100.0, nfft=256):
         return None
     med = float(np.median(m))
     return round(10.0 * np.log10(max(med * 2500.0, 1e-30)), 1)
+
+
+def find_spurs(iq, rate=OUT_RATE, nfft=1024, span_hz=150.0, min_db=6.0, max_n=8):
+    """
+    Narrow spurs (steady carriers) in the WSPR window of one slot: list of dict(off_hz, snr, above, persist), strongest first,
+    or None when the slot has too few samples. off_hz: Hz from the centre of the window (dial + 1500 Hz); snr: dB in 2500 Hz,
+    the same scale as the WSPR SNR (carrier power against the noise of the window); above: dB over the typical bin;
+    persist: % of the slot in which the carrier stood out.
+    How a carrier is told from a WSPR signal: 0.37 Hz bins, and for each bin the MEDIAN over the 2.7 s frames of the slot of
+    the strongest of that bin and its two neighbours (a slow drift of the carrier stays inside). A carrier is there the whole
+    slot, so its median rises; a WSPR signal hops between 4 tones 1.46 Hz (4 bins) apart, so each bin holds it at most about a
+    third of the time and its median stays at the noise. Segments without samples are left out.
+    """
+    x = np.asarray(iq, np.complex64)
+    hop = nfft // 2
+    n = (x.size - nfft) // hop + 1
+    if n < 12:
+        return None
+    seg = np.lib.stride_tricks.as_strided(x, shape=(n, nfft), strides=(x.strides[0] * hop, x.strides[0]))
+    seg = seg[np.einsum("ij,ij->i", seg.real, seg.real) + np.einsum("ij,ij->i", seg.imag, seg.imag) > 0]
+    if seg.shape[0] < 12:
+        return None
+    w = np.hanning(nfft).astype(np.float32)
+    freqs = np.fft.fftshift(np.fft.fftfreq(nfft, 1.0 / rate))
+    keep = np.abs(freqs) <= span_hz + 2 * rate / nfft
+    p = np.empty((seg.shape[0], int(keep.sum())), np.float64)
+    for a in range(0, seg.shape[0], 32):
+        f = np.fft.fftshift(np.fft.fft(seg[a:a + 32] * w, axis=1), axes=1)[:, keep]
+        p[a:a + 32] = f.real.astype(np.float64) ** 2 + f.imag.astype(np.float64) ** 2
+    fk = freqs[keep]
+    m3 = np.maximum(p, np.maximum(np.roll(p, 1, axis=1), np.roll(p, -1, axis=1)))
+    m3[:, 0], m3[:, -1] = p[:, 0], p[:, -1]
+    s = np.median(m3, axis=0)                                   # per bin: level held for most of the slot
+    ref = float(np.median(s))
+    if not ref > 0:
+        return None
+    above = 10.0 * np.log10(np.maximum(s, 1e-30) / ref)
+    psd = p.mean(axis=0) / (rate * float((w ** 2).sum()))       # mean power per Hz, full scale^2 / Hz
+    df = rate / nfft
+    inside = np.abs(fk) <= span_hz
+    n0 = float(np.median(psd[inside]))                          # noise density of the window
+    cand = [k for k in range(1, len(fk) - 1) if inside[k] and above[k] >= min_db and s[k] >= s[k - 1] and s[k] >= s[k + 1]]
+    cand = sorted({k - 1 + int(np.argmax(psd[k - 1:k + 2])) for k in cand})   # the median of 3 bins is flat on top: take the real peak
+    cand = [k for k in cand if 0 < k < len(fk) - 1]
+    kept = []
+    for k in sorted(cand, key=lambda k: -psd[k]):
+        if all(abs(fk[k] - fk[j]) > 1.5 for j in kept):
+            kept.append(k)
+    out = []
+    for k in kept:
+        lo, hi = max(0, k - 3), min(len(fk), k + 4)
+        pc = (float(psd[lo:hi].sum()) - (hi - lo) * n0) * df         # carrier power: the bins around the peak minus their noise
+        wl, wh = max(0, k - 14), min(len(fk), k + 15)                 # +-5 Hz: the whole width of a WSPR signal around the peak
+        pw = (float(psd[wl:wh].sum()) - (wh - wl) * n0) * df
+        if pw <= 0 or pc / pw < 0.7:                                  # energy spread over several Hz: a WSPR signal, not a carrier
+            continue
+        a, b, c = (10.0 * math.log10(max(float(v), 1e-30)) for v in psd[k - 1:k + 2])
+        d = 0.5 * (a - c) / (a - 2 * b + c) if (a - 2 * b + c) < 0 else 0.0   # peak between bins (parabola through 3 bins)
+        out.append(dict(off_hz=round(float(fk[k]) + max(-0.5, min(0.5, d)) * df, 2), snr=round(float(10.0 * np.log10(max(pc, 1e-30) / (n0 * 2500.0))), 1),
+                        above=round(float(above[k]), 1), persist=round(100.0 * float(np.mean(m3[:, k] > 2.0 * ref)))))
+        if len(out) >= max_n:
+            break
+    return out

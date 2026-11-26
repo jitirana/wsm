@@ -35,6 +35,7 @@ a{color:var(--acc)}
 #wfLabels span{position:absolute;transform:translateX(-50%);white-space:nowrap;font:600 12px/1.2 system-ui;color:#fff;background:rgba(0,0,0,.55);
  border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:1px 5px;pointer-events:none}
 #wfLabels span.own{border-style:dashed;opacity:.8}
+#wfLabels span.spur{transform:translate(-50%,-100%);background:rgba(120,0,0,.6);font-weight:500}
 #wfAxis{grid-row:2;grid-column:2;position:relative;height:30px;font-size:12px;color:var(--mute)}#wfAxis span{position:absolute;top:3px;white-space:nowrap;transform:translateX(-50%)}
 #wfTabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .hq{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;padding:0;margin-left:5px;border-radius:50%;
@@ -139,6 +140,7 @@ Distance and bearing are from the station locator.</p></div>
 <p class="note" id="evList"></p>
 <div class="tw" id="effBox"></div>
 <p class="note" id="stepList"></p>
+<div class="tw" id="spurBox"></div>
 <div class="tw" id="thermBox"></div>
 <p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 <div class="panel" id="missP" style="display:none"><h2><b class="ht">Heard by others, not by me<button class="hq" data-h="missed" aria-label="explain">?</button></b><span id="missInfo"></span></h2>
@@ -164,7 +166,7 @@ const HELP={
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
  missed:"Signals that other receivers in the region of this station decoded in a slot where this receiver was listening to the same band, taken from the public WSPRnet database (wspr.live; paths of 500 km or more, other stations within about 650 km). The path to a receiver that close is nearly the same as to this one, so propagation does not explain a miss: it is a measure of the station (antenna, noise, receiver). <b>Heard by them</b> = transmissions (one per slot and callsign) decoded by at least one other receiver; <b>Heard by me</b> = how many of these this receiver also decoded; <b>Strongest miss</b> = the best SNR the neighbours had for a transmission I missed. A miss at +5 dB is a real problem, one at -28 dB is at the limit of every receiver. The list shows the missed transmissions, the strongest first. The data is refreshed every hour, so the newest slots may be missing, and a region with few other receivers gives small numbers.",
- hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made. <b>Δ</b> beside an event shows what changed around it: the mean noise per band before the event against the mean after it (the first minutes are skipped, so a lamp or a power supply can settle; both windows stop at the neighbouring events), with the change in dB and whether it is larger than the normal scatter of the slots. <b>Noise shifts found</b> lists level changes of 1.5 dB or more that the system detected by itself; the ones that follow an event are tagged with it, the others have a <b>mark</b> button that prepares an event at that time. Type what you did (\"LED on\", \"fan off\") and press <b>+ mark event</b>: a dashed violet line with the text appears on every chart at that moment (set the time field if it was earlier); the × beside an event in the list deletes it. <b>noise vs typical hour</b> shows each band's noise minus its median at the same hour of the day over the last 14 days, so the daily drift of the band is removed and a local source, a storm or a change you made stands out (0 = typical; needs 2 days of data). The computer rows are written every 5 minutes, the slot rows every 2 minutes. <b>CPU slowdowns per day</b>: minutes in which the Raspberry Pi firmware slowed the CPU (frequency capped, throttled or soft temperature limit, from vcgencmd), minutes below 1000 MHz and minutes with under-voltage; <b>Short slots</b> = slots that lost samples, and how many of them overlapped a slowdown. Many short slots while slowed point to heat or power; short slots with no slowdown point elsewhere (USB, SDRplay API). Data from before this version shows –.",
+ hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made. <b>Δ</b> beside an event shows what changed around it: the mean noise per band before the event against the mean after it (the first minutes are skipped, so a lamp or a power supply can settle; both windows stop at the neighbouring events), with the change in dB and whether it is larger than the normal scatter of the slots. <b>Noise shifts found</b> lists level changes of 1.5 dB or more that the system detected by itself; the ones that follow an event are tagged with it, the others have a <b>mark</b> button that prepares an event at that time. Type what you did (\"LED on\", \"fan off\") and press <b>+ mark event</b>: a dashed violet line with the text appears on every chart at that moment (set the time field if it was earlier); the × beside an event in the list deletes it. <b>noise vs typical hour</b> shows each band's noise minus its median at the same hour of the day over the last 14 days, so the daily drift of the band is removed and a local source, a storm or a change you made stands out (0 = typical; needs 2 days of data). The computer rows are written every 5 minutes, the slot rows every 2 minutes. <b>CPU slowdowns per day</b>: minutes in which the Raspberry Pi firmware slowed the CPU (frequency capped, throttled or soft temperature limit, from vcgencmd), minutes below 1000 MHz and minutes with under-voltage; <b>Short slots</b> = slots that lost samples, and how many of them overlapped a slowdown. Many short slots while slowed point to heat or power; short slots with no slowdown point elsewhere (USB, SDRplay API). Data from before this version shows –. <b>Narrow spurs</b>: steady carriers inside the WSPR window (narrower than 1 Hz and present the whole slot, which a WSPR signal never is), grouped by frequency, with the share of the slots of the band in which each one was seen and its level on the WSPR SNR scale; one seen in most slots is a local source (switching supply, LED driver, a clock harmonic). The waterfall marks them at the bottom with \"spur\".",
  map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
@@ -348,7 +350,7 @@ async function loadHist(force){
  if(!force&&Date.now()-histT<60000){return}
  histT=Date.now();
  try{histData=await fetch("api/history?hours="+histH).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("histP").style.display="none";return}
- drawHist();evList();loadSteps();loadTherm();if(effId)loadEffect(effId)}
+ drawHist();evList();loadSteps();loadSpurs();loadTherm();if(effId)loadEffect(effId)}
 for(const b of document.querySelectorAll("#histP .tools button[data-h]"))b.addEventListener("click",()=>{histH=+b.dataset.h;
  for(const x of document.querySelectorAll("#histP .tools button[data-h]"))x.classList.toggle("on",x===b);loadHist(true)});
 $("relN").addEventListener("click",e=>{relOn=!relOn;e.currentTarget.classList.toggle("on",relOn);drawHist()});
@@ -385,6 +387,14 @@ async function loadSteps(){
   return `${esc(fmtLocal(x.ts))} ${esc(x.band)} <b>${x.delta>0?"+":""}${x.delta.toFixed(1)} dB</b> (${x.before.toFixed(1)} → ${x.after.toFixed(1)})${n?" · after “"+esc(n.text)+"”":` <button class="evx stm" data-ts="${x.ts}" title="mark an event at this time">mark</button>`}`}).join(" · ")}
 $("stepList").addEventListener("click",e=>{const b=e.target.closest(".stm");if(!b)return;
  const d=new Date(+b.dataset.ts*1000),p=n=>String(n).padStart(2,"0");$("evT").value=p(d.getHours())+":"+p(d.getMinutes());$("evText").focus()});
+// ---- steady narrow carriers (spurs) in the WSPR window ----
+async function loadSpurs(){
+ const h=Math.max(6,Math.min(720,histH));let d;
+ try{d=await fetch("api/spurs?hours="+h).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("spurBox").innerHTML="";return}
+ const sp=d.spurs||[],per=h>=48?Math.round(h/24)+" days":h+" h";
+ if(!sp.length){$("spurBox").innerHTML=`<p class="note">No steady narrow carrier found in the WSPR window in the last ${per}.</p>`;return}
+ $("spurBox").innerHTML=`<h3>Narrow spurs in the WSPR window <span class="mute">(last ${per})</span></h3><table><tr><th>Band</th><th>Frequency</th><th>Offset</th><th>Seen in</th><th>SNR median / max</th><th>First / last</th></tr>`+
+  sp.map(x=>`<tr><td>${esc(x.band)}</td><td>${(x.freq_hz/1e6).toFixed(6)} MHz</td><td>${x.off_hz>0?"+":""}${x.off_hz.toFixed(1)} Hz</td><td>${x.pct==null?x.slots:`<b>${x.pct} %</b>`} <span class="mute">(${x.slots} of ${x.band_slots} slots)</span></td><td>${x.snr_med.toFixed(0)} / ${x.snr_max.toFixed(0)} dB</td><td>${esc(fmtLocal(x.first))} – ${esc(fmtLocal(x.last))}</td></tr>`).join("")+"</table>"}
 // ---- thermal health per day: how long the CPU ran slowed down, and the short slots at the same time ----
 async function loadTherm(){
  let d;try{d=await fetch("api/thermal?days=14").then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("thermBox").innerHTML="";return}
@@ -462,7 +472,8 @@ async function loadWf(){
  $("wfInfo").textContent=`${w.band} · ${new Date(w.ts*1000).toLocaleString([],{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} (${fmtT(w.ts).slice(11)} UTC) · ${w.decodes.length} decoded · coverage ${w.coverage} %`;
  // callsign labels at the start of each trace (WSPR starts ~1 s + DT after the even minute)
  $("wfLabels").innerHTML=w.decodes.map(x=>{const left=(x.off_hz-w.f_lo)/span*100,t=1+(x.dt||0)+3,top=Math.max(0,Math.min(92,(t-w.t0)/w.dt/w.rows*100));
-  return `<span class="${x.own?"own":""}" style="left:${left.toFixed(2)}%;top:${top.toFixed(1)}%">${esc(x.call)} ${x.snr} dB</span>`}).join("");
+  return `<span class="${x.own?"own":""}" style="left:${left.toFixed(2)}%;top:${top.toFixed(1)}%">${esc(x.call)} ${x.snr} dB</span>`}).join("")+
+  (w.spurs||[]).map(x=>`<span class="spur" style="left:${((x.off_hz-w.f_lo)/span*100).toFixed(2)}%;top:96%" title="steady carrier: ${x.off_hz>0?"+":""}${x.off_hz} Hz, ${x.snr} dB in 2500 Hz">spur ${x.snr} dB</span>`).join("");
  // frequency axis: every 50 Hz, labels as audio offset and the real frequency at the centre
  let ax="";for(let f=-150;f<=150;f+=50){const l=(f-w.f_lo)/span*100;const tx=f<=-150?"0":(f>=150?"-100%":"-50%");ax+=`<span style="left:${l}%;transform:translateX(${tx})">${f===0?rf.toFixed(4)+" MHz":(f>0?"+":"")+f+" Hz"}</span>`}
  $("wfAxis").innerHTML=ax;
@@ -752,7 +763,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(db.summary(time.time() - hours * 3600, st.cfg["station"]["callsign"], hide_own=noown))
             if p == "/api/waterfall":                                # last waterfall of each band: metadata + decodes
                 wfs = getattr(st, "waterfalls", None) or {}
-                return self._json(dict(bands={b: {k: v for k, v in w.items() if k != "png"} for b, w in list(wfs.items())}))
+                hide = {"png"} if authed else {"png", "spurs"}       # spurs are station health: key only
+                return self._json(dict(bands={b: {k: v for k, v in w.items() if k not in hide} for b, w in list(wfs.items())}))
             if p == "/api/waterfall.png":
                 w = (getattr(st, "waterfalls", None) or {}).get((q.get("band") or [""])[0])
                 if not w:
@@ -768,6 +780,9 @@ class Handler(BaseHTTPRequestHandler):
                 hc = st.cfg.get("health") or {}
                 h.update(hours=hours, temp_max_c=float(hc.get("temp_max_c", 75)), coverage_min=float(hc.get("coverage_min", 95)))
                 return self._json(h)
+            if p == "/api/spurs":                                    # steady narrow carriers in the WSPR window (never public)
+                hours = num("hours", 24, 1, 24 * 30)
+                return self._json(dict(hours=hours, spurs=db.spur_summary(time.time() - hours * 3600)))
             if p == "/api/thermal":                                  # thermal health per day (never public)
                 return self._json(dict(days=db.thermal_daily(time.time() - num("days", 14, 1, 400) * 86400)))
             if p == "/api/effect":                                   # before/after of an event (never public)

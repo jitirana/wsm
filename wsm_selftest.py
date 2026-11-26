@@ -171,6 +171,30 @@ _od = wsm_db.DB(os.path.join(tmp, "oldsys.sqlite"), "HI03"); assert _od.thermal_
 _th = json.loads(urllib.request.urlopen(u + "api/thermal?days=3").read()); assert "days" in _th
 assert "loadTherm" in wsm_web.PAGE and 'id="thermBox"' in wsm_web.PAGE
 print("thermal health per day: ok")
+_rs = np.random.default_rng(11); _N = 45000; _tq = np.arange(_N) / 375.0      # narrow spurs: a carrier is found, WSPR signals are not
+_nz = (_rs.normal(size=_N) + 1j * _rs.normal(size=_N)) * 2e-3 / np.sqrt(2); _n0 = (2e-3) ** 2 / 375.0
+_amp = lambda snr: np.sqrt(10 ** (snr / 10) * _n0 * 2500)
+def _wspr(f, snr):
+    _sy = _rs.integers(0, 4, 162); _i = np.clip(((_tq - 1) / (256 / 375)).astype(int), 0, 161)
+    return _amp(snr) * np.exp(2j * np.pi * np.cumsum(f + (_sy[_i] - 1.5) * 375 / 256) / 375) * ((_tq >= 1) & (_tq < 1 + 162 * 256 / 375))
+_x = (_nz + _amp(-24) * np.exp(2j * np.pi * 37.3 * _tq) + _wspr(-50, 8) + _wspr(60, -18)).astype(np.complex64)
+_sp = wsm_dsp.find_spurs(_x)
+assert len(_sp) == 1 and abs(_sp[0]["off_hz"] - 37.3) < 0.1 and abs(_sp[0]["snr"] + 24) < 1.5, _sp
+assert wsm_dsp.find_spurs(_nz.astype(np.complex64)) == [] and wsm_dsp.find_spurs(np.zeros(_N, np.complex64)) is None
+_sd = wsm_db.DB(os.path.join(tmp, "spur.sqlite"), "HI03"); _s0 = int(time.time()) // 120 * 120 - 7200
+for _k in range(10):                                  # 10 slots of 20 m: a carrier in 8 of them (drifting 0.2 Hz), a one-off in 1
+    _sid = _sd.add_slot(_s0 + _k * 120, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", "", -50.0)
+    _l = [dict(off_hz=37.3 + 0.02 * _k, snr=-24.0 - _k % 3, above=9.0, persist=100)] if _k < 8 else []
+    if _k == 9:
+        _l = [dict(off_hz=-80.0, snr=-15.0, above=20.0, persist=100)]
+    if _l:
+        _sd.add_spurs(_sid, _s0 + _k * 120, "20m", 14095600, _l)
+_ss = _sd.spur_summary(_s0 - 1)
+assert len(_ss) == 2 and _ss[0]["slots"] == 8 and _ss[0]["pct"] == 80 and abs(_ss[0]["freq_hz"] - 14097137.4) < 0.3, _ss
+assert _ss[0]["snr_max"] == -24.0 and _ss[1]["slots"] == 1, _ss
+assert "spurs" in json.loads(urllib.request.urlopen(u + "api/spurs?hours=24").read())
+assert "loadSpurs" in wsm_web.PAGE and 'id="spurBox"' in wsm_web.PAGE and "span.spur" in wsm_web.PAGE
+print("narrow spurs: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):
     time.sleep(int(os.environ["WSM_KEEP"]))
