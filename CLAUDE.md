@@ -2,8 +2,8 @@
 
 A WSPR receiver and monitor that runs 24/7 on a **Raspberry Pi 3B+** with an **SDRplay RSP2**: it records 2-minute slots,
 decodes them (WSJT-X `wsprd`), stores spots in SQLite, uploads to WSPRnet and serves a web page with health, noise and
-diagnostics. Station hardware, current antenna (long wire on the Hi-Z port) and the noise hunt in progress are in
-`docs/HARDWARE.md` and `docs/ROADMAP.md`.
+diagnostics. Hardware and antennas (the station uses a long wire on the Hi-Z port): `docs/HARDWARE.md`; ideas and
+their state: `docs/ROADMAP.md`; settings: `docs/CONFIGURATION.md`.
 
 ## Talking to the user
 - Answer in **Brazilian Portuguese**. Code, comments, commit messages and docs stay in English.
