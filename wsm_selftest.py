@@ -144,6 +144,7 @@ except urllib.error.HTTPError as _e:
     assert _e.code == 404
 assert "steps" in json.loads(urllib.request.urlopen(u + "api/steps?hours=24").read())
 assert "loadEffect" in wsm_web.PAGE and "loadSteps" in wsm_web.PAGE and "axf" in wsm_web.PAGE and "dec:true" in wsm_web.PAGE
+assert "const PMIN=" in wsm_web.PAGE and ".panel.min>:not(h2)" in wsm_web.PAGE
 print("effect and steps API: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):

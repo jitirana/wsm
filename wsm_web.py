@@ -46,6 +46,8 @@ a{color:var(--acc)}
  text-transform:none;letter-spacing:0;white-space:normal;text-align:left}
 #tip b{color:var(--acc)}
 .panel h2 .ht{display:inline-flex;align-items:center}
+.pmin{width:22px;height:22px;padding:0;margin-right:7px;border-radius:6px;font-size:12px;line-height:1}
+.panel.pm h2 .ht{cursor:pointer}.panel.min>:not(h2){display:none!important}.panel.min h2{margin:0}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
 .chart{position:relative;min-width:0}.chart h3{font-size:13px;font-weight:600;margin:0 0 2px;display:flex;justify-content:space-between;gap:8px}
 .chart h3 span{font-weight:400;color:var(--mute)}
@@ -515,6 +517,17 @@ $("csv").addEventListener("click",()=>{location.href="spots.csv?"+q()+"&limit=10
 $("th").addEventListener("click",()=>{const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark";try{localStorage.setItem("wsm_theme",r.dataset.theme)}catch(e){}});
 try{const t=localStorage.getItem("wsm_theme");if(t)document.documentElement.dataset.theme=t}catch(e){}
 load();setInterval(load,20000);
+// ---- minimize panels (remembered in this browser only) ----
+const PMIN=["wfP","bandsP","openP","mapP","spotsP","histP","missP"];
+let pminS={};try{pminS=JSON.parse(localStorage.getItem("wsm_min")||"{}")||{}}catch(e){pminS={}}
+function pminSet(id,on,save){const p=$(id);if(!p)return;p.classList.toggle("min",on);const b=p.querySelector(".pmin");
+ if(b){b.textContent=on?"▸":"▾";b.setAttribute("aria-expanded",String(!on));b.title=on?"show this panel":"minimize this panel"}
+ if(save){pminS[id]=on;try{localStorage.setItem("wsm_min",JSON.stringify(pminS))}catch(e){}}
+ if(!on){if(id==="mapP"&&MAP)setTimeout(()=>MAP.invalidateSize(),60);if(id==="histP")setTimeout(drawHist,60)}}
+for(const id of PMIN){const p=$(id);if(!p)continue;const ht=p.querySelector("h2 .ht");if(!ht)continue;
+ const b=document.createElement("button");b.className="pmin";b.type="button";ht.prepend(b);p.classList.add("pm");
+ ht.addEventListener("click",e=>{if(e.target.closest(".hq"))return;pminSet(id,!p.classList.contains("min"),true)});
+ pminSet(id,!!pminS[id],false)}
 </script></body></html>
 """
 

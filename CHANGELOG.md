@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Panels from "Last slot" to "Heard by others, not by me" can be minimized: a small arrow before the title (or a click on the title) folds the
+  panel to its header line and opens it again. The choice is kept in this browser (localStorage; another browser or a private window starts
+  with everything open). The map and the health charts are redrawn when they open again.
 - **Before/after of an event.** A **Δ** button beside each event in Health history shows, per band, the mean noise before the event against the
   mean after it (the first `settle` minutes are skipped, default 10, adjustable, so a lamp or a power supply can settle; both windows stop at the
   neighbouring events), the change in dB, the change of the stream power, and whether it is larger than twice the standard error of the slots
