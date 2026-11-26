@@ -7,7 +7,7 @@ Why it matters: an under-voltage makes the Pi firmware drop the CPU to 600 MHz f
 falls behind and silently loses samples ("slot covered 80 %"), and the decoder fails. That took days to find by hand.
 
 snapshot() -> dict for the web page (/api/system) and the health monitor:
-  pi, temp_c, temp_max_1h, clock_mhz, clock_max_mhz, uv_now, uv_pct_1h, uv_events_1h, low_clock_pct_1h,
+  pi, temp_c, temp_max_1h, clock_mhz, clock_max_mhz, uv_now, uv_pct_1h, uv_events_1h, low_clock_pct_1h, capped_pct_1h,
   throttled_hex, coverage_1h (%), slots_1h, partial_1h, samples_1h
 """
 import re
@@ -22,6 +22,7 @@ import wsm_db
 LOW_CLOCK_MHZ = 1000        # below this the CPU is being held down (600 MHz = under-voltage/throttling); a 3B+ at 60 C runs 1200
 WINDOW_S = 3600
 HIST_S = 300               # one row of history per 5 minutes in the database (table syshist)
+SLOWED_MASK = 0xE          # get_throttled bits 1-3 now: ARM frequency capped, throttled, soft temperature limit (bit 0 = under-voltage, kept apart)
 
 
 def _run(args):
@@ -94,7 +95,8 @@ class SysMon:
             temp_c=round(sum(temps) / len(temps), 1) if temps else None, temp_max=max(temps) if temps else None,
             clock_mhz=round(sum(clks) / len(clks)) if clks else None, clock_min=round(min(clks)) if clks else None,
             uv_pct=round(100.0 * sum(1 for t in thr if t & 1) / len(thr), 1) if thr else None,
-            low_clock_pct=round(100.0 * sum(1 for c in clks if c < LOW_CLOCK_MHZ) / len(clks), 1) if clks else None))
+            low_clock_pct=round(100.0 * sum(1 for c in clks if c < LOW_CLOCK_MHZ) / len(clks), 1) if clks else None,
+            capped_pct=round(100.0 * sum(1 for t in thr if t & SLOWED_MASK) / len(thr), 1) if thr else None))
 
     # ----- slot coverage from the database -----
     def coverage(self, since):
@@ -132,6 +134,7 @@ class SysMon:
             uv_pct_1h=round(100.0 * sum(uv) / len(uv), 1) if uv else None,
             uv_events_1h=events if uv else None,
             low_clock_pct_1h=round(100.0 * sum(1 for c in clks if c < LOW_CLOCK_MHZ) / len(clks), 1) if clks else None,
+            capped_pct_1h=round(100.0 * sum(1 for t in thr if t & SLOWED_MASK) / len(thr), 1) if thr else None,
             coverage_1h=round(cov, 1) if cov is not None else None, slots_1h=nslots, partial_1h=partial,
             samples_1h=len(s), now=int(now))
 

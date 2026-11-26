@@ -146,6 +146,31 @@ assert "steps" in json.loads(urllib.request.urlopen(u + "api/steps?hours=24").re
 assert "loadEffect" in wsm_web.PAGE and "loadSteps" in wsm_web.PAGE and "axf" in wsm_web.PAGE and "dec:true" in wsm_web.PAGE
 assert "const PMIN=" in wsm_web.PAGE and ".panel.min>:not(h2)" in wsm_web.PAGE
 print("effect and steps API: ok")
+import wsm_sys                                     # thermal health per day: slowed minutes, short slots while slowed, old databases
+_tz = time.gmtime
+_td = wsm_db.DB(os.path.join(tmp, "therm.sqlite"), "HI03"); _t0 = (int(time.time()) // 86400 - 2) * 86400
+for _k in range(12):                                 # one hour of day 1: 3 rows slowed 40 %, 1 row under-voltage 20 %, the rest normal
+    _td.add_sys(dict(ts=_t0 + _k * 300, temp_c=60.0, temp_max=62.0 + _k, clock_mhz=1350, clock_min=1200, samples=30,
+                     uv_pct=20.0 if _k == 7 else 0.0, low_clock_pct=0.0, capped_pct=40.0 if _k in (2, 3, 4) else 0.0))
+_td.add_sys(dict(ts=_t0 + 86400, temp_c=50.0, temp_max=51.0, clock_mhz=1400, clock_min=1400, samples=30, uv_pct=None, low_clock_pct=0.0))
+for _k, _note in ((0, ""), (3, "slot covered 80 %"), (5, "slot covered 85 %"), (20, "slot covered 70 %")):
+    _td.add_slot(_t0 + _k * 120, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", _note, -50.0)
+_dd = _td.thermal_daily(_t0 - 1, tz=_tz)
+assert [x["day"] for x in _dd] == [time.strftime("%Y-%m-%d", _tz(_t0 + 86400)), time.strftime("%Y-%m-%d", _tz(_t0))], _dd
+_a, _b = _dd[1], _dd[0]
+assert _a["capped_min"] == 6.0 and _a["uv_min"] == 1.0 and _a["temp_max"] == 73.0 and _a["minutes"] == 60.0, _a
+assert _a["slots"] == 4 and _a["short"] == 3 and _a["short_slow"] == 1, _a      # short slots at 6, 10 and 40 min: only the one at 10 min falls in a slowed row
+assert _b["capped_min"] is None and _b["uv_min"] is None and _b["slots"] == 0, _b    # a row without the new data shows "–"
+_m = wsm_sys.SysMon(_td, clock=lambda: 0); _m.samples.extend([(_t0 + 2 * 86400 + i, 55.0, 1400.0, 0x0 if i < 6 else 0x8) for i in range(10)])
+_m.save_history(_t0 + 2 * 86400)
+assert _td.con.execute("SELECT capped_pct, uv_pct FROM syshist WHERE ts=?", (_t0 + 2 * 86400,)).fetchone()[:] == (40.0, 0.0)
+_oc = sqlite3.connect(os.path.join(tmp, "oldsys.sqlite"))
+_oc.execute("CREATE TABLE syshist (ts INTEGER PRIMARY KEY, temp_c REAL, temp_max REAL, clock_mhz REAL, clock_min REAL, uv_pct REAL, low_clock_pct REAL, samples INTEGER)")
+_oc.execute("INSERT INTO syshist VALUES (1000, 50, 51, 1400, 1400, 0, 0, 30)"); _oc.commit(); _oc.close()
+_od = wsm_db.DB(os.path.join(tmp, "oldsys.sqlite"), "HI03"); assert _od.thermal_daily(0)[0]["capped_min"] is None
+_th = json.loads(urllib.request.urlopen(u + "api/thermal?days=3").read()); assert "days" in _th
+assert "loadTherm" in wsm_web.PAGE and 'id="thermBox"' in wsm_web.PAGE
+print("thermal health per day: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):
     time.sleep(int(os.environ["WSM_KEEP"]))

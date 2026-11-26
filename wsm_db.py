@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS syshist (       -- computer health, one row per 5 min
     clock_min REAL,                        -- lowest CPU clock seen (600 = held down)
     uv_pct    REAL,                        -- % of the samples with under-voltage
     low_clock_pct REAL,                    -- % of the samples below 1000 MHz
-    samples   INTEGER
+    samples   INTEGER,
+    capped_pct REAL                        -- % of the samples with the CPU slowed by the firmware (capped, throttled or soft temperature limit)
 );
 CREATE TABLE IF NOT EXISTS ref_openings (  -- public WSPRnet reference by band and hour of day (wsm_openings.py)
     band      TEXT NOT NULL,
@@ -118,6 +119,9 @@ class DB:
         if "noise_db" not in [r[1] for r in self.con.execute("PRAGMA table_info(slots)")]:      # database of an older version
             with self.con:
                 self.con.execute("ALTER TABLE slots ADD COLUMN noise_db REAL")
+        if "capped_pct" not in [r[1] for r in self.con.execute("PRAGMA table_info(syshist)")]:
+            with self.con:
+                self.con.execute("ALTER TABLE syshist ADD COLUMN capped_pct REAL")
         self.my = tuple(my_latlon) if my_latlon else wsm_geo.grid_to_latlon(my_grid)
 
     def add_slot(self, ts, band, dial_hz, radio, antenna, gain_db, rate_hz, peak, rms_db, status="ok", note="", noise_db=None):
@@ -202,9 +206,56 @@ class DB:
             return [dict(r) for r in self.con.execute("SELECT * FROM slots ORDER BY ts DESC LIMIT ?", (int(limit),))]
 
     def add_sys(self, row):
+        row = dict(dict(capped_pct=None), **row)
         with self.lock, self.con:
-            self.con.execute("INSERT OR REPLACE INTO syshist (ts,temp_c,temp_max,clock_mhz,clock_min,uv_pct,low_clock_pct,samples) "
-                             "VALUES (:ts,:temp_c,:temp_max,:clock_mhz,:clock_min,:uv_pct,:low_clock_pct,:samples)", row)
+            self.con.execute("INSERT OR REPLACE INTO syshist (ts,temp_c,temp_max,clock_mhz,clock_min,uv_pct,low_clock_pct,samples,capped_pct) "
+                             "VALUES (:ts,:temp_c,:temp_max,:clock_mhz,:clock_min,:uv_pct,:low_clock_pct,:samples,:capped_pct)", row)
+
+    def thermal_daily(self, since, hist_s=300, tz=time.localtime):
+        """thermal health per local day: how long the CPU ran slowed down and whether short slots coincided with it.
+        One syshist row covers `hist_s` seconds, so minutes = sum(pct) / 100 * hist_s / 60. A slot is "during a slowdown"
+        when a 5-minute row it overlaps (start or end) had any capped, under-voltage or low-clock sample."""
+        with self.lock:
+            rows = [dict(r) for r in self.con.execute("SELECT * FROM syshist WHERE ts>=? ORDER BY ts", (int(since),))]
+            slots = self.con.execute("SELECT ts, status, note FROM slots WHERE ts>=? ORDER BY ts", (int(since),)).fetchall()
+        day = lambda ts: time.strftime("%Y-%m-%d", tz(ts))
+        f = hist_s / 60.0 / 100.0
+        out, slow = {}, set()
+        for r in rows:
+            d = out.setdefault(day(r["ts"]), dict(day=day(r["ts"]), minutes=0, temp_max=None, temp_sum=0.0, temp_n=0,
+                                                   capped_min=None, low_clock_min=0.0, uv_min=None,
+                                                   slots=0, short=0, short_slow=0, slow_slots=0))
+            d["minutes"] += hist_s / 60.0
+            if r["temp_max"] is not None:
+                d["temp_max"] = max(d["temp_max"] or -99, r["temp_max"])
+            if r["temp_c"] is not None:
+                d["temp_sum"] += r["temp_c"]; d["temp_n"] += 1
+            if r["capped_pct"] is not None:
+                d["capped_min"] = (d["capped_min"] or 0.0) + r["capped_pct"] * f
+            if r["uv_pct"] is not None:
+                d["uv_min"] = (d["uv_min"] or 0.0) + r["uv_pct"] * f
+            d["low_clock_min"] += (r["low_clock_pct"] or 0.0) * f
+            if (r["capped_pct"] or 0) > 0 or (r["uv_pct"] or 0) > 0 or (r["low_clock_pct"] or 0) > 0:
+                slow.add(r["ts"])
+        for s in slots:
+            d = out.get(day(s["ts"]))
+            if d is None:
+                continue
+            during = any((t // hist_s * hist_s) in slow for t in (s["ts"], s["ts"] + 119))
+            short = slot_coverage(s["status"], s["note"]) < 100
+            d["slots"] += 1
+            d["slow_slots"] += during
+            d["short"] += short
+            d["short_slow"] += short and during
+        res = []
+        for d in sorted(out.values(), key=lambda x: x["day"], reverse=True):
+            n = d.pop("temp_n"); t = d.pop("temp_sum")
+            d["temp_mean"] = round(t / n, 1) if n else None
+            for k in ("minutes", "capped_min", "low_clock_min", "uv_min"):
+                if d[k] is not None:
+                    d[k] = round(d[k], 1)
+            res.append(d)
+        return res
 
     # ---- operator events (marked on the charts) ----
     def add_event(self, ts, text):
