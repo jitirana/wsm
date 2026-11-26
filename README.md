@@ -63,6 +63,7 @@ The web page listens on `http://127.0.0.1:8091/` (local only); publish it with a
 | `wsm_dsp.py` | stream → 375 S/s complex baseband on the UTC grid, block by block |
 | `wsm_waterfall.py` | waterfall picture (PNG, numpy only) of the last slot of each band |
 | `decoder/` | `wsprd_wsjtx` (WSJT-X wsprd, default), `wsm_decode` (older rtlsdr-wsprd, fallback) and `wsm_symbols` (C, GPL-3.0) |
+| `wsm_missed.py` | signals the receivers near the station decoded and this one did not (wspr.live), panel "Heard by others, not by me" |
 | `wsm_db.py`, `wsm_geo.py` | SQLite storage; locator → position, distance, bearing |
 | `wsm_web.py`, `static/` | web page, JSON/CSV API, the `/about` page, the station page (`station.html`) |
 | `wsm_landing.py` | data of the station page: WSPR summary and ADS-B numbers from readsb |

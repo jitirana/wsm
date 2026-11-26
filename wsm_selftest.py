@@ -60,6 +60,26 @@ _r1 = _h.history(_now - 3600, 300)
 assert _r1["bucket"] == 300 and 29 <= len(_r1["slots"]) <= 31 and min(x["ts"] for x in _r1["slots"]) >= _now - 3600, len(_r1["slots"])
 assert 'data-h="1">1 h</button>' in wsm_web.PAGE and "span<=2*3600?600" in wsm_web.PAGE
 print("noise in the WSPR window: ok", [round(v) for v in _ns][:4])
+import time as _t2                                 # events and the typical noise of the hour (insights)
+_n0 = _t2.time()
+_eid = db.add_event(_n0 - 600, "  LED   on  "); assert db.events(_n0 - 3600)[-1]["text"] == "LED on" and db.events(_n0 - 3600)[-1]["id"] == _eid
+_long = db.add_event(_n0, "x" * 200); assert len(db.events(_n0 - 1)[-1]["text"]) == 80; db.del_event(_long)
+try:
+    db.add_event(_n0, "   "); raise SystemExit("empty event accepted")
+except ValueError:
+    pass
+assert db.del_event(_eid) == 1 and db.del_event(_eid) == 0
+_bd = wsm_db.DB(os.path.join(tmp, "base.sqlite"), "HI03", (-6.0, -39.0))
+_b0 = (int(_n0) // 86400 - 3) * 86400 + 5 * 3600
+for _d in range(3):                                  # 3 days x 10 slots at 05 UTC: -44 dB, one odd day at -80
+    for _k in range(10):
+        _bd.add_slot(_b0 + _d * 86400 + _k * 120, "30m", 10138700, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", "", -80 if _d == 1 else -44)
+_bs = _bd.noise_baseline(14, now=_b0 + 4 * 86400)
+assert _bs["30m"][5] == -44.0 and _bs["30m"][6] is None and set(_bs) == {"30m"}, _bs     # median ignores the odd day; other hours: no data
+_bd.add_slot(_b0 + 8 * 3600, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30, "ok", "", -44)
+assert "20m" not in _bd.noise_baseline(14, now=_b0 + 4 * 86400)                      # too few slots
+assert "base" in _bd.history(_b0 - 60) and "events" in _bd.history(_b0 - 60)
+print("events and typical noise: ok")
 import wsm_wsprnet                                  # the saved upload state must follow the database (ids restart from 1 in a new one)
 _st = wsm_wsprnet.settings(cfg); _top = wsm_wsprnet._max_id(db); _lg = []
 wsm_wsprnet._save(cfg, {}); assert wsm_wsprnet.initial_state(cfg, db, _st, _lg.append)["last_id"] == _top
@@ -75,6 +95,27 @@ for p in ["", "api/status", "api/summary?hours=720", "api/spots?since=0", "api/s
     d = urllib.request.urlopen(u + p).read()
     print(p or "/", len(d), "bytes")
 print(json.loads(urllib.request.urlopen(u + "api/summary?hours=720").read())["bands"])
+import urllib.error                                 # events through the web page: the custom header is required, text is cleaned
+def _post(path, obj, hdr=True):
+    rq = urllib.request.Request(u + path, data=json.dumps(obj).encode(), method="POST", headers={"Content-Type": "application/json", **({"X-WSM": "1"} if hdr else {})})
+    return urllib.request.urlopen(rq)
+try:
+    _post("api/event", {"text": "no header"}, hdr=False); raise SystemExit("POST without header accepted")
+except urllib.error.HTTPError as _e:
+    assert _e.code == 403
+for _bad in ({"text": ""}, {"text": "x", "ts": 1}, {"text": "x", "ts": time.time() + 99999}):
+    try:
+        _post("api/event", _bad); raise SystemExit("bad event accepted")
+    except urllib.error.HTTPError as _e:
+        assert _e.code == 400
+_r = json.loads(_post("api/event", {"text": "fan off", "ts": time.time() - 120}).read()); assert _r["ok"]
+_h = json.loads(urllib.request.urlopen(u + "api/history?hours=1").read())
+assert [e["text"] for e in _h["events"]] == ["fan off"] and "base" in _h and _h["events"][0]["id"] == _r["id"]
+assert json.loads(_post("api/event/delete", {"id": _r["id"]}).read())["deleted"] == 1
+assert json.loads(urllib.request.urlopen(u + "api/history?hours=1").read())["events"] == []
+assert "bands" in json.loads(urllib.request.urlopen(u + "api/missed?hours=24").read())
+assert "evAdd" in wsm_web.PAGE and "relN" in wsm_web.PAGE and "loadMiss" in wsm_web.PAGE
+print("events, typical noise and missed API: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):
     time.sleep(int(os.environ["WSM_KEEP"]))

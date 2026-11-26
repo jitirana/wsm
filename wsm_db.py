@@ -67,6 +67,20 @@ CREATE TABLE IF NOT EXISTS ref_openings (  -- public WSPRnet reference by band a
     PRIMARY KEY (band, hour)
 );
 CREATE TABLE IF NOT EXISTS ref_meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS events (        -- things the operator did (LED on, fan off, cable moved): marked on the health charts
+    id        INTEGER PRIMARY KEY,
+    ts        INTEGER NOT NULL,            -- when it happened (UTC, unix seconds)
+    text      TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS nb_heard (      -- what the other receivers near this station decoded (wsm_missed.py, from wspr.live)
+    ts        INTEGER NOT NULL,            -- start of the slot (UTC)
+    band      TEXT NOT NULL,
+    tx        TEXT NOT NULL,
+    rx        TEXT NOT NULL,
+    snr       INTEGER,
+    km        INTEGER,
+    PRIMARY KEY (ts, band, tx, rx)
+);
 CREATE TABLE IF NOT EXISTS peer_cmp (      -- my SNR against the other receivers of the same transmitter (wsm_peers.py)
     spot_id   INTEGER PRIMARY KEY,
     ts        INTEGER NOT NULL,
@@ -191,6 +205,43 @@ class DB:
             self.con.execute("INSERT OR REPLACE INTO syshist (ts,temp_c,temp_max,clock_mhz,clock_min,uv_pct,low_clock_pct,samples) "
                              "VALUES (:ts,:temp_c,:temp_max,:clock_mhz,:clock_min,:uv_pct,:low_clock_pct,:samples)", row)
 
+    # ---- operator events (marked on the charts) ----
+    def add_event(self, ts, text):
+        text = " ".join(str(text).split())[:80]
+        if not text:
+            raise ValueError("empty text")
+        with self.lock, self.con:
+            cur = self.con.execute("INSERT INTO events (ts, text) VALUES (?, ?)", (int(ts), text))
+            return cur.lastrowid
+
+    def del_event(self, event_id):
+        with self.lock, self.con:
+            return self.con.execute("DELETE FROM events WHERE id=?", (int(event_id),)).rowcount
+
+    def events(self, since, until=None):
+        with self.lock:
+            return [dict(r) for r in self.con.execute(
+                "SELECT id, ts, text FROM events WHERE ts>=? AND ts<=? ORDER BY ts", (int(since), int(until or time.time() + 86400)))]
+
+    def noise_baseline(self, days=14, min_slots=8, now=None):
+        """typical noise of each band at each hour of the day (UTC): the median of noise_db over the last `days` days.
+        -> {band: [24 values, None where there are fewer than min_slots slots or only one day of data]}.
+        The median ignores a few odd days (a test with the antenna off, a thunderstorm)."""
+        since = int(now or time.time()) - int(days) * 86400
+        groups = {}
+        with self.lock:
+            for ts, band, nz in self.con.execute(
+                    "SELECT ts, band, noise_db FROM slots WHERE ts>=? AND noise_db IS NOT NULL AND status IN ('ok','partial')", (since,)):
+                groups.setdefault((band, ts % 86400 // 3600), []).append((ts // 86400, nz))
+        out = {}
+        for (band, h), vals in groups.items():
+            if len(vals) < min_slots or len({d for d, _ in vals}) < 2:
+                continue
+            v = sorted(n for _, n in vals)
+            m = len(v) // 2
+            out.setdefault(band, [None] * 24)[h] = round(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2, 2)
+        return out
+
     def history(self, since, bucket=300):
         """health over time for the graphs: computer (syshist) and slots (coverage, input level per band).
         bucket: seconds per point; 300 keeps every 5-minute row and every slot."""
@@ -224,7 +275,7 @@ class DB:
                                 rms_db=round(sum(a["rms"]) / len(a["rms"]), 1) if a["rms"] else None,
                                 noise_db=round(sum(a["noise"]) / len(a["noise"]), 1) if a["noise"] else None,
                                 cov=round(sum(a["cov"]) / len(a["cov"]), 1), spots=a["spots"]))
-        return dict(sys=sysrows, slots=out, bucket=b)
+        return dict(sys=sysrows, slots=out, bucket=b, events=self.events(since), base=self.noise_baseline())
 
     def prune(self, keep_days):
         if keep_days and keep_days > 0:
@@ -233,3 +284,4 @@ class DB:
                 self.con.execute("DELETE FROM spots WHERE ts<?", (cut,))
                 self.con.execute("DELETE FROM slots WHERE ts<?", (cut,))
                 self.con.execute("DELETE FROM syshist WHERE ts<?", (cut,))
+                self.con.execute("DELETE FROM nb_heard WHERE ts<?", (cut,))

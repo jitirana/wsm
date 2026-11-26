@@ -24,6 +24,7 @@ import wsm_config
 import wsm_backup
 import wsm_db
 import wsm_health
+import wsm_missed
 import wsm_openings
 import wsm_peers
 import wsm_dsp
@@ -488,6 +489,7 @@ def main():
     wsm_backup.start(cfg, stop, log)
     wsm_openings.start(cfg, db, stop, log)
     wsm_peers.start(cfg, db, stop, log)
+    wsm_missed.start(cfg, db, stop, log)
     last_prune = time.time()
     while not stop.is_set():
         time.sleep(1)

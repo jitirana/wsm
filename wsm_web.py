@@ -64,6 +64,7 @@ a{color:var(--acc)}
 .tools{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
 select,input,button{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
 button{cursor:pointer}button.on{border-color:var(--acc)}
+button.evx{padding:0 6px;margin-left:2px;line-height:1.2}
 .tw{overflow-x:auto}
 .og{display:grid;grid-template-columns:34px 26px repeat(24,minmax(11px,1fr));gap:2px;font-size:11px;align-items:center;min-width:520px}
 .og .bl{color:var(--ink);font-weight:700;grid-row:span 2}.og .bl.one{grid-row:auto}.og .hd{color:var(--mute);text-align:center;font-size:10px}
@@ -130,9 +131,15 @@ coloured by band; tap a dot for the details. Shaded = night now, the sun symbol 
 1 s after the even minute. The locator link opens Google Maps at the centre of the locator square (WSPR sends 4 characters: about +-100 km).
 Distance and bearing are from the station locator.</p></div>
 <div class="panel" id="histP" style="display:none"><h2><b class="ht">Health history<button class="hq" data-h="hist" aria-label="explain">?</button></b><span id="histInfo"></span></h2>
-<div class="tools"><button data-h="1">1 h</button><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button></div>
+<div class="tools"><button data-h="1">1 h</button><button data-h="6">6 h</button><button data-h="24" class="on">24 h</button><button data-h="168">7 days</button><button data-h="720">30 days</button><button id="relN" title="show the noise as the difference from the typical noise of the same band at the same hour of the day">noise vs typical hour</button></div>
+<div class="tools"><input id="evText" maxlength="80" size="28" placeholder="event, e.g. LED on, fan off" aria-label="event text"><input id="evT" type="time" title="local time of the event; empty = now" aria-label="event time"><button id="evAdd">+ mark event</button></div>
 <div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cNoise"></div><div class="chart" id="cLvl"></div></div>
+<p class="note" id="evList"></p>
 <p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
+<div class="panel" id="missP" style="display:none"><h2><b class="ht">Heard by others, not by me<button class="hq" data-h="missed" aria-label="explain">?</button></b><span id="missInfo"></span></h2>
+<div class="tools"><button data-m="6">6 h</button><button data-m="24" class="on">24 h</button><button data-m="48">48 h</button></div>
+<div class="tw"><table id="missT"></table></div><div class="tw"><table id="missL"></table></div>
+<p class="note" id="missNote"></p></div>
 </main>
 <div id="tip" role="tooltip" hidden></div>
 <script src="static/leaflet.js"></script>
@@ -151,7 +158,8 @@ const HELP={
  bestall:"The farthest station this receiver has ever heard, with band, date and SNR.",
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
- hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made (the computer rows are written every 5 minutes, the slot rows every 2 minutes).",
+ missed:"Signals that other receivers in the region of this station decoded in a slot where this receiver was listening to the same band, taken from the public WSPRnet database (wspr.live; paths of 500 km or more, other stations within about 650 km). The path to a receiver that close is nearly the same as to this one, so propagation does not explain a miss: it is a measure of the station (antenna, noise, receiver). <b>Heard by them</b> = transmissions (one per slot and callsign) decoded by at least one other receiver; <b>Heard by me</b> = how many of these this receiver also decoded; <b>Strongest miss</b> = the best SNR the neighbours had for a transmission I missed. A miss at +5 dB is a real problem, one at -28 dB is at the limit of every receiver. The list shows the missed transmissions, the strongest first. The data is refreshed every hour, so the newest slots may be missing, and a region with few other receivers gives small numbers.",
+ hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made. Type what you did (\"LED on\", \"fan off\") and press <b>+ mark event</b>: a dashed violet line with the text appears on every chart at that moment (set the time field if it was earlier); the × beside an event in the list deletes it. <b>noise vs typical hour</b> shows each band's noise minus its median at the same hour of the day over the last 14 days, so the daily drift of the band is removed and a local source, a storm or a change you made stands out (0 = typical; needs 2 days of data). The computer rows are written every 5 minutes, the slot rows every 2 minutes.",
  map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
@@ -265,7 +273,7 @@ function drawNight(){
 setInterval(drawNight,60000);
 $("mNight").addEventListener("click",e=>{showNight=!showNight;e.target.classList.toggle("on",showNight);drawNight()});
 // ---- health history graphs ----
-let histH=24,histData=null,histT=0;
+let histH=24,histData=null,histT=0,relOn=false;
 function fmtLocal(t,long){const d=new Date(t*1000);return long?d.toLocaleString([],{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
 function chart(id,title,unit,series,o){
  // series: [{pts:[[t,v]...], color, label}]  o: {t0,t1,ymin,ymax,lines:[{y,label}],marks:[t],step,fmt}
@@ -281,7 +289,9 @@ function chart(id,title,unit,series,o){
  const tz=new Date().getTimezoneOffset()*60;
  for(let t=Math.ceil((o.t0-tz)/stepX)*stepX+tz;t<=o.t1;t+=stepX){const x=X(t);g+=`<line class="gl" x1="${x}" x2="${x}" y1="${T}" y2="${T+ih}"/><text class="ax" x="${x}" y="${H-5}" text-anchor="middle">${stepX>=86400?new Date(t*1000).toLocaleDateString([],{day:"2-digit",month:"2-digit"}):fmtLocal(t)}</text>`}
  for(const t of o.marks||[])g+=`<rect x="${X(t)-1}" y="${T}" width="${Math.max(2,o.step/(o.t1-o.t0)*iw)}" height="${ih}" fill="#d92d20" opacity=".35"/>`;
- for(const l of o.lines||[])g+=`<line x1="${L}" x2="${W-R}" y1="${Y(l.y)}" y2="${Y(l.y)}" stroke="#d92d20" stroke-dasharray="5 4" stroke-width="1.2"/><text class="ax" x="${W-R}" y="${Y(l.y)-3}" text-anchor="end" fill="#d92d20">${esc(l.label)}</text>`;
+ for(const l of o.lines||[])g+=`<line x1="${L}" x2="${W-R}" y1="${Y(l.y)}" y2="${Y(l.y)}" stroke="${l.color||"#d92d20"}" stroke-dasharray="5 4" stroke-width="1.2"/><text class="ax" x="${W-R}" y="${Y(l.y)-3}" text-anchor="end" fill="${l.color||"#d92d20"}">${esc(l.label)}</text>`;
+ for(const e of o.events||[]){if(e.ts<o.t0||e.ts>o.t1)continue;const x=X(e.ts).toFixed(1);
+  g+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${T+ih}" stroke="#6b5bd2" stroke-dasharray="3 3" stroke-width="1.3"><title>${esc(fmtLocal(e.ts,true)+"  "+e.text)}</title></line><text class="ax" transform="translate(${(+x+8)} ${T+3}) rotate(90)" fill="#6b5bd2" style="font-size:9px">${esc(e.text.slice(0,16))}</text>`}
  for(const s of series){let d="",prev=null;
   for(const [t,v] of s.pts){if(v==null){prev=null;continue}const x=X(t).toFixed(1),y=Y(Math.max(lo,Math.min(hi,v))).toFixed(1);
    d+=(prev==null||t-prev>o.step*2.5?"M":"L")+x+" "+y;prev=t}
@@ -302,7 +312,7 @@ function chart(id,title,unit,series,o){
  svg.addEventListener("pointerleave",()=>{tt.style.display="none";xh.setAttribute("visibility","hidden")})}
 function drawHist(){
  const d=histData;if(!d)return;
- const t1=Date.now()/1000,t0=t1-d.hours*3600,st=d.bucket;
+ const t1=Date.now()/1000,t0=t1-d.hours*3600,st=d.bucket,EV=d.events||[];
  const sy=d.sys||[],sl=d.slots||[];
  if(!sy.length&&!sl.length){$("histP").style.display="";for(const id of ["cTemp","cClk","cCov","cNoise","cLvl"])$(id).innerHTML="";$("cTemp").innerHTML='<p class="mute">No history yet: the first point is written 5 minutes after WSM starts.</p>';return}
  $("histP").style.display="";
@@ -311,27 +321,61 @@ function drawHist(){
  const wait=t=>`<h3>${t}</h3><p class="mute" style="height:150px;margin:0;padding-top:50px;text-align:center">collecting data: the first point appears 5 minutes after WSM starts</p>`;
  if(!sy.length){$("cTemp").innerHTML=wait("CPU temperature");$("cClk").innerHTML=wait("CPU clock (lowest)")}else{
  chart("cTemp","CPU temperature","°C",[{pts:sy.map(r=>[r.ts,r.temp_c]),color:"#e0702a",label:"mean"},{pts:sy.map(r=>[r.ts,r.temp_max]),color:"#b42318",label:"max"}],
-  {t0,t1,step:st,lines:[{y:d.temp_max_c,label:"alert "+d.temp_max_c+" °C"}],fmt:v=>v.toFixed(0)});
+  {events:EV,t0,t1,step:st,lines:[{y:d.temp_max_c,label:"alert "+d.temp_max_c+" °C"}],fmt:v=>v.toFixed(0)});
  chart("cClk","CPU clock (lowest)","MHz",[{pts:sy.map(r=>[r.ts,r.clock_min]),color:"#2e7dd1",label:"lowest"}],
-  {t0,t1,step:st,ymin:0,ymax:Math.ceil(Math.max(1000,...sy.map(r=>r.clock_min||0))/250)*250,marks:sy.filter(r=>r.uv_pct>0).map(r=>r.ts),fmt:v=>Math.round(v)});}
+  {events:EV,t0,t1,step:st,ymin:0,ymax:Math.ceil(Math.max(1000,...sy.map(r=>r.clock_min||0))/250)*250,marks:sy.filter(r=>r.uv_pct>0).map(r=>r.ts),fmt:v=>Math.round(v)});}
  const slStep=st<=300?120:st;
  const nStep=d.hours<=2?600:Math.max(slStep*6,1800);          // 1-2 h view: a point every slot or two, so the gap and hover limits are short
  chart("cCov","Slot coverage","%",[{pts:sl.map(r=>[r.ts,r.cov]),color:"#1f7a3d",label:"coverage"}],
-  {t0,t1,step:Math.max(slStep,600),ymin:Math.min(80,...sl.map(r=>r.cov)),ymax:100,lines:[{y:d.coverage_min,label:"alert "+d.coverage_min+" %"}],fmt:v=>v.toFixed(0)});
+  {events:EV,t0,t1,step:Math.max(slStep,600),ymin:Math.min(80,...sl.map(r=>r.cov)),ymax:100,lines:[{y:d.coverage_min,label:"alert "+d.coverage_min+" %"}],fmt:v=>v.toFixed(0)});
  const bands=[...new Set(sl.map(r=>r.band))].sort((a,b)=>BANDS_ORDER.indexOf(a)-BANDS_ORDER.indexOf(b));
- chart("cNoise","Noise in the WSPR window, per band","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b&&r.noise_db!=null).map(r=>[r.ts,r.noise_db]),color:bandColor(b),label:b})),
-  {t0,t1,step:nStep,fmt:v=>v.toFixed(0)});
+ const rel=relOn&&d.base,hourOf=t=>Math.floor((t%86400)/3600);
+ const nz=(b,r)=>{if(!rel)return r.noise_db;const bs=d.base[b];return bs&&bs[hourOf(r.ts)]!=null&&r.noise_db!=null?r.noise_db-bs[hourOf(r.ts)]:null};
+ const nser=bands.map(b=>({pts:sl.filter(r=>r.band===b&&r.noise_db!=null).map(r=>[r.ts,nz(b,r)]),color:bandColor(b),label:b}));
+ if(rel&&!nser.some(s=>s.pts.some(p=>p[1]!=null)))$("cNoise").innerHTML='<h3>Noise vs typical for the hour</h3><p class="mute" style="height:150px;margin:0;padding-top:50px;text-align:center">not enough history yet: it needs 2 days with at least 8 slots in the same hour of the band</p>';
+ else chart("cNoise",rel?"Noise vs typical for the hour, per band":"Noise in the WSPR window, per band","dB",nser,
+  {events:EV,t0,t1,step:nStep,lines:rel?[{y:0,label:"typical",color:"#6b7280"}]:[],fmt:rel?(v=>(v>0?"+":"")+v.toFixed(1)):(v=>v.toFixed(0))});
  chart("cLvl","Stream power per band (62 kHz wide)","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b).map(r=>[r.ts,r.rms_db]),color:bandColor(b),label:b})),
-  {t0,t1,step:nStep,fmt:v=>v.toFixed(0)})}
+  {events:EV,t0,t1,step:nStep,fmt:v=>v.toFixed(0)})}
 async function loadHist(force){
  if(!document.body.classList.contains("auth"))return;
  if(!force&&Date.now()-histT<60000){return}
  histT=Date.now();
  try{histData=await fetch("api/history?hours="+histH).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("histP").style.display="none";return}
- drawHist()}
-for(const b of document.querySelectorAll("#histP .tools button"))b.addEventListener("click",()=>{histH=+b.dataset.h;
- for(const x of document.querySelectorAll("#histP .tools button"))x.classList.toggle("on",x===b);loadHist(true)});
+ drawHist();evList()}
+for(const b of document.querySelectorAll("#histP .tools button[data-h]"))b.addEventListener("click",()=>{histH=+b.dataset.h;
+ for(const x of document.querySelectorAll("#histP .tools button[data-h]"))x.classList.toggle("on",x===b);loadHist(true)});
+$("relN").addEventListener("click",e=>{relOn=!relOn;e.currentTarget.classList.toggle("on",relOn);drawHist()});
+function evList(){const ev=(histData&&histData.events)||[];
+ $("evList").innerHTML=ev.length?"Events: "+ev.map(e=>`${esc(fmtLocal(e.ts))} ${esc(e.text)} <button class="evx" data-id="${+e.id}" title="delete this event" aria-label="delete event">×</button>`).join(" · "):""}
+async function evPost(path,obj){const r=await fetch(path,{method:"POST",headers:{"X-WSM":"1","Content-Type":"application/json"},body:JSON.stringify(obj)});if(!r.ok)throw 0}
+async function evAdd(){const text=$("evText").value.trim();if(!text)return;let ts=Date.now()/1000;const tv=$("evT").value;
+ if(tv){const [h,m]=tv.split(":").map(Number),d=new Date();d.setHours(h,m,0,0);ts=d.getTime()/1000;if(ts>Date.now()/1000+60)ts-=86400}
+ try{await evPost("api/event",{text,ts});$("evText").value="";$("evT").value="";loadHist(true)}catch(e){$("evList").textContent="Could not save the event."}}
+$("evAdd").addEventListener("click",evAdd);
+$("evText").addEventListener("keydown",e=>{if(e.key==="Enter")evAdd()});
+$("evList").addEventListener("click",async e=>{const b=e.target.closest(".evx");if(!b)return;
+ try{await evPost("api/event/delete",{id:+b.dataset.id});loadHist(true)}catch(x){$("evList").textContent="Could not delete the event."}});
 let rsz;addEventListener("resize",()=>{clearTimeout(rsz);rsz=setTimeout(drawHist,200)});
+// ---- heard by the neighbouring receivers, not by me ----
+let missH=24,missT=0;
+async function loadMiss(force){
+ if(!document.body.classList.contains("auth"))return;
+ if(!force&&Date.now()-missT<120000)return;
+ missT=Date.now();let d;
+ try{d=await fetch("api/missed?hours="+missH).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("missP").style.display="none";return}
+ $("missP").style.display="";
+ $("missInfo").textContent=d.updated?"checked "+fmtLocal(d.updated,true):"waiting for the first check";
+ const bs=d.bands||[];
+ $("missT").innerHTML=bs.length?"<tr><th>Band</th><th>Slots</th><th>Receivers nearby</th><th>Heard by them</th><th>Heard by me</th><th>%</th><th>Strongest miss</th></tr>"+
+  bs.map(b=>`<tr><td>${esc(b.band)}</td><td>${b.slots}</td><td>${b.neighbours}</td><td>${b.heard_nb}</td><td>${b.heard_me}</td><td>${b.pct==null?"–":b.pct+" %"}</td><td>${b.strongest_miss==null?"–":b.strongest_miss+" dB"}</td></tr>`).join(""):"";
+ const ms=d.misses||[];
+ $("missL").innerHTML=ms.length?"<tr><th>Time</th><th>Band</th><th>Call</th><th>Best SNR nearby</th><th>Receivers</th><th>Distance (km)</th></tr>"+
+  ms.map(m=>`<tr><td>${esc(fmtLocal(m.ts,true))}</td><td>${esc(m.band)}</td><td><b>${esc(m.tx)}</b></td><td>${m.snr==null?"–":m.snr+" dB"}</td><td>${m.n_rx}</td><td>${m.km==null?"–":m.km}</td></tr>`).join(""):"";
+ $("missNote").textContent=!d.updated?"The first check runs about 7 minutes after WSM starts.":
+  !bs.some(b=>b.heard_nb)?"No other receiver near the station reported decodes in the slots this one listened to (nothing to compare with yet).":"";}
+for(const b of document.querySelectorAll("#missP .tools button"))b.addEventListener("click",()=>{missH=+b.dataset.m;
+ for(const x of document.querySelectorAll("#missP .tools button"))x.classList.toggle("on",x===b);loadMiss(true)});
 // ---- band openings: band x hour of the day ----
 let opD=30,opLocal=false,opRef=true,opData=null,opT=0;
 async function loadOpen(force){
@@ -421,7 +465,7 @@ async function load(){
   const ba=sm.best_all;
   cards+=`<div class="card"><div class="k">${hq("bestall")}Best DX · all time</div><div class="v">${ba?Math.round(ba.dist_km)+" km":"-"}</div><div class="s">${ba?esc(ba.call)+" · "+esc(ba.grid)+" · "+esc(ba.band)+"<br>"+esc(new Date(ba.ts*1000).toISOString().slice(0,16).replace("T"," "))+" UTC · "+ba.snr+" dB":""}</div></div>`;
   $("cards").innerHTML=cards;
-  loadWf();loadHist();loadOpen();
+  loadWf();loadHist();loadMiss();loadOpen();
   let h="<thead><tr><th>Band</th><th>Slots</th><th>Spots</th><th>Stations</th><th>Last slot</th></tr></thead><tbody>";
   for(const b of sm.bands)h+=`<tr><td>${esc(b.band)}</td><td>${b.slots}</td><td>${b.spots}</td><td>${b.calls}</td><td>${ago(b.last_ts)} ago</td></tr>`;
   $("bands").innerHTML=h+"</tbody>";
@@ -561,6 +605,50 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def do_POST(self):
+        """operator events: POST /api/event {text, ts?} and POST /api/event/delete {id}. Needs the key; never public."""
+        try:
+            u = urlparse(self.path)
+            ok, _ = self._authorized(parse_qs(u.query))
+            if not ok or (self.server.public and not self.server.token):
+                return self._send(401, "restricted access", "text/plain; charset=utf-8")
+            if self.headers.get("X-WSM") != "1":                       # a form on another site cannot set this header
+                return self._send(403, "forbidden", "text/plain; charset=utf-8")
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if not 0 < n <= 2048:
+                return self._send(400, "bad request", "text/plain; charset=utf-8")
+            try:
+                body = json.loads(self.rfile.read(n).decode("utf-8", "replace"))
+                assert isinstance(body, dict)
+            except (ValueError, AssertionError):
+                return self._send(400, "bad json", "text/plain; charset=utf-8")
+            db = self.server.db
+            if u.path == "/api/event":
+                try:
+                    ts = float(body.get("ts") or time.time())
+                    if not time.time() - 400 * 86400 < ts < time.time() + 3600:
+                        raise ValueError
+                    eid = db.add_event(ts, body.get("text", ""))
+                except (ValueError, TypeError):
+                    return self._send(400, "bad event", "text/plain; charset=utf-8")
+                return self._json(dict(ok=True, id=eid))
+            if u.path == "/api/event/delete":
+                try:
+                    return self._json(dict(ok=True, deleted=db.del_event(int(body.get("id")))))
+                except (ValueError, TypeError):
+                    return self._send(400, "bad id", "text/plain; charset=utf-8")
+            return self._send(404, "not found", "text/plain; charset=utf-8")
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            try:
+                self._send(500, f"error: {type(e).__name__}", "text/plain; charset=utf-8")
+            except Exception:
+                pass
+
     def do_GET(self):
         try:
             u = urlparse(self.path)
@@ -634,6 +722,10 @@ class Handler(BaseHTTPRequestHandler):
                 hc = st.cfg.get("health") or {}
                 h.update(hours=hours, temp_max_c=float(hc.get("temp_max_c", 75)), coverage_min=float(hc.get("coverage_min", 95)))
                 return self._json(h)
+            if p == "/api/missed":                                   # what the neighbouring receivers decoded and I did not (never public)
+                import wsm_missed
+                hours = num("hours", 24, 1, 24 * 7)
+                return self._json(wsm_missed.compare(db, time.time() - hours * 3600))
             if p == "/api/system":
                 sm = getattr(st, "sysmon", None)
                 return self._json(sm.snapshot() if sm else {})
