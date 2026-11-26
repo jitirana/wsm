@@ -370,7 +370,7 @@ async function loadEffect(id){
  let h=`<p class="note"><b>${esc(d.event.text)}</b> at ${esc(fmtLocal(d.event.ts))}: before ${w(d.a)} against after ${w(d.b)}. Settle <input id="effSettle" type="number" min="0" max="60" value="${st}" style="width:64px"> min after the event are skipped; each window stops at the neighbouring events. <button id="effX" class="evx" title="close">×</button></p>`;
  h+=d.bands.length?"<table><tr><th>Band</th><th>Noise before</th><th>Noise after</th><th>Change</th><th>Stream</th><th></th></tr>"+d.bands.map(b=>
   `<tr><td>${esc(b.band)}</td><td>${b.before.toFixed(1)} dB (${b.n_before})</td><td>${b.after.toFixed(1)} dB (${b.n_after})</td><td><b>${sg(b.delta)} dB</b></td><td>${b.rms_delta==null?"–":sg(b.rms_delta)+" dB"}</td><td>${b.clear?"clear change":"within the normal scatter"}${Math.min(b.n_before,b.n_after)<4?" (few slots)":""}</td></tr>`).join("")+"</table>"
-  :'<p class="mute">No band has 2 or more slots on both sides of this event (the rotation spreads the slots over the bands: try a shorter settle time, or listen to one band while testing).</p>';
+  :'<p class="note">No band has 2 or more slots on both sides of this event (the rotation spreads the slots over the bands: try a shorter settle time, or listen to one band while testing).</p>';
  $("effBox").innerHTML=h;
  $("effSettle").addEventListener("change",()=>loadEffect(effId));$("effX").addEventListener("click",()=>{$("effBox").innerHTML="";effId=0})}
 async function loadSteps(){
