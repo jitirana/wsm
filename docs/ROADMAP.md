@@ -18,3 +18,13 @@ Each item says where it stands. New ideas go to the end of the list.
 ## Also open
 - "Heard by others": only count transmitters at a similar distance from both receivers (as `wsm_peers` does), so propagation does not explain the misses.
 - Noise step threshold (1.5 dB) configurable in `wsm.yaml`.
+
+## Noise hunt (results so far)
+Procedure: skill `caca-ao-ruido`. Add each test here with the date, the band and the Δ in dB.
+- 2026-11-26, 20 m: station hears about 7 dB below receivers at a similar distance (`wsm_peers`, 14 spots, Hi-Z long wire);
+  10 spots in 2 days, all on 20 m (780 slots on 20 m, 0 spots in 444 slots of 40, 30 and 10 m). Frequency error -0.04 ppm and DT -0.4 s: not the cause (`tools/wsm_diag.py`).
+- Noise in the WSPR window about the same on 40, 30 and 20 m (-43.7 / -44.7 / -44.3 dB), 10 m -54.5 dB: a flat local source
+  is suspected. Without the antenna about -86 dB.
+- LED lamp: on +1.3 dB (20 m) / +0.8 dB (10 m), off -1.0 / -1.6 dB. Real, but small. Noise still 2.5–3 dB above the typical hour.
+- Steady carrier at 7.040027 MHz (40 m, -22 dB, every slot, slight drift), not seen on the other bands. Next: antenna-off test.
+- Next: whole house off with the Pi on a power bank; Starlink off.
