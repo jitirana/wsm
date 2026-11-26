@@ -24,6 +24,7 @@ import wsm_config
 import wsm_backup
 import wsm_db
 import wsm_health
+import wsm_missed
 import wsm_openings
 import wsm_peers
 import wsm_dsp
@@ -174,15 +175,24 @@ def run_decoder(cfg, iq, dial_hz, slot_ts=None):
 
 def _dsp_and_decode(cfg, x_path, rate, t0, slot, offset_hz, dial):
     """runs in the decode PROCESS (see DecodePool): stream file -> 375 S/s grid -> wsm_decode.
-    Returns (spots, coverage, error, waterfall dict or None)."""
+    Returns (spots, coverage, error, waterfall dict or None, noise in the WSPR window in dB or None)."""
     x = np.load(x_path, mmap_mode="r")                # read block by block by wsm_dsp: the slot is never copied whole
     iq, cov = wsm_dsp.to_wspr_grid(x, rate, t0, slot, offset_hz)
     del x
     wf = make_waterfall(cfg, iq)
+    noise = window_noise(iq)
     try:
-        return run_decoder(cfg, iq, dial, slot), cov, "", wf
+        return run_decoder(cfg, iq, dial, slot), cov, "", wf, noise
     except Exception as e:
-        return [], cov, str(e), wf
+        return [], cov, str(e), wf, noise
+
+
+def window_noise(iq):
+    """noise in the WSPR window (dB re full scale in 2500 Hz); never fails the slot"""
+    try:
+        return wsm_dsp.noise_floor_db(iq)
+    except Exception:
+        return None
 
 
 def make_waterfall(cfg, iq):
@@ -262,11 +272,12 @@ def process(cfg, db, job, pool=None):
         db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note)
         return 0, note
     if pool is not None:
-        spots, cov, err, wf = pool.run(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]), dial)
+        spots, cov, err, wf, noise = pool.run(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]), dial)
         rec["x"] = np.zeros(1, np.complex64)          # free the slot now, not when the job is dropped
     else:
         iq, cov = wsm_dsp.to_wspr_grid(rec["x"], rec["rate"], rec["t0"], slot, float(bc["offset_hz"]))
         wf = make_waterfall(cfg, iq)
+        noise = window_noise(iq)
         try:
             spots, err = run_decoder(cfg, iq, dial, slot), ""
         except Exception as e:
@@ -301,7 +312,7 @@ def process(cfg, db, job, pool=None):
             m = mine[0]                                                   # kept in the log/slot note: handy to calibrate DT
             note = (note + " " if note else "") + (f"own TX heard: {m.get('freq_mhz')} MHz, SNR {m.get('snr')} dB, "
                                                    f"DT {m.get('dt')} s, drift {m.get('drift')} (not stored)")
-    sid = db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note)
+    sid = db.add_slot(slot, band, dial, rc["name"], bc["antenna"], bc["gain_db"], rec["rate"], rec["peak"], rec["rms_db"], status, note, noise)
     n = db.add_spots(sid, slot, band, spots) if spots else 0
     return n, note
 
@@ -478,6 +489,7 @@ def main():
     wsm_backup.start(cfg, stop, log)
     wsm_openings.start(cfg, db, stop, log)
     wsm_peers.start(cfg, db, stop, log)
+    wsm_missed.start(cfg, db, stop, log)
     last_prune = time.time()
     while not stop.is_set():
         time.sleep(1)

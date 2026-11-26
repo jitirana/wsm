@@ -1,6 +1,39 @@
 # Changelog
 
 ## Unreleased
+- Panels from "Last slot" to "Heard by others, not by me" can be minimized: a small arrow before the title (or a click on the title) folds the
+  panel to its header line and opens it again. The choice is kept in this browser (localStorage; another browser or a private window starts
+  with everything open). The map and the health charts are redrawn when they open again.
+- **Before/after of an event.** A **Δ** button beside each event in Health history shows, per band, the mean noise before the event against the
+  mean after it (the first `settle` minutes are skipped, default 10, adjustable, so a lamp or a power supply can settle; both windows stop at the
+  neighbouring events), the change in dB, the change of the stream power, and whether it is larger than twice the standard error of the slots
+  ("clear change" or "within the normal scatter"). `api/effect?id=..&before=30&settle=10&after=30` (never public). Tested with a synthetic step.
+- **Noise shifts found by themselves.** Under the events, "Noise shifts found" lists level changes of 1.5 dB or more (median of 4 slots after a
+  point against 4 before, in runs of the same band without a gap of more than 30 minutes, at least 3 times the scatter; one per 20 minutes and
+  band). A shift that follows an event is tagged with it; the others have a **mark** button that prepares an event at that time.
+  `api/steps?hours=..` (never public). A flat band and a band with a long gap are not reported (tested).
+- The noise and stream charts show one decimal on the axis when the range is under 8 dB, and one decimal in the hover (it was rounded to whole dB).
+- **Events on the charts.** Health history has a text field, an optional time and a "+ mark event" button: what you did ("LED on", "fan off", "cable moved")
+  is stored in the new `events` table and drawn as a dashed violet line with its text on every chart; the list under the charts deletes an event
+  with the x. Added `POST /api/event` and `POST /api/event/delete` (need the key, never public; a cross-site form cannot call them: SameSite=Strict
+  cookie plus a required `X-WSM: 1` header), and `events` in `api/history`. Tested in `wsm_selftest.py`.
+- **Noise vs typical hour.** `noise vs typical hour` button: each band's noise minus its median at the same UTC hour over the last 14 days
+  (`DB.noise_baseline`, needs 2 days and 8 slots per hour; the median ignores a few odd days), so the daily drift of the band is removed and a local
+  source or a change you made stands out. `api/history` carries the `base` table. Tested with a synthetic odd day.
+- **Heard by others, not by me.** New `wsm_missed.py` and panel: once an hour it asks wspr.live what the other receivers in the region
+  (`missed.radius_deg`, default 6 degrees) decoded on each band over the last `missed.days` (default 2), paths of at least 500 km, and compares with
+  this receiver's own spots in the slots it really listened to. Per band: slots, receivers nearby, heard by them, heard by me, % and the strongest miss
+  (best SNR a neighbour had for a transmission I missed); plus the list of misses, strongest first. Propagation cannot explain a miss when a receiver
+  a few hundred km away decoded it, so this measures the station. `api/missed` (never public); table `nb_heard`, pruned with `keep_days`;
+  `python3 wsm_missed.py --test | --run | --show`; shares the wspr.live settings of `openings.reference`; `missed: {enabled: no}` turns it off.
+- Health history has a **1 h** period next to 6 h / 24 h / 7 days / 30 days, to watch the effect of a change right after making it (a lamp, a power
+  supply, a cable). The time axis gets a mark every 10 minutes, and the per-band charts break lines and answer the hover within 10 minutes instead of
+  30. Same API (`api/history?hours=1`); nothing to migrate. Covered by `wsm_selftest.py`.
+- Noise in the WSPR window: each slot now stores `noise_db`, the noise the decoder works against (median of the spectrum over the +-100 Hz of the
+  decoder input, so WSPR signals and carriers do not move it), in dB re full scale in 2500 Hz: signal level = noise + SNR. The old `rms_db` is the power of
+  the whole 62 kHz stream and moves with strong signals far from the WSPR window (on 24/11 it read -23 dB while a station was decoded at -22 dB, as if the
+  noise were 19 dB lower). The Input level card shows both ("WSPR noise -58 dB · stream -25 dB") and Health history has a new chart per band. Older
+  databases get the column on start (`ALTER TABLE`); old slots stay empty. Tested in `wsm_selftest.py` (level, signals, gaps, migration).
 - Dashboard: the radio card says what is being recorded ("recording 10m"), and the Input level card names the last finished slot with its
   time ("last finished slot: 30m 20:44 UTC · mean -29 dB"). The two cards used to look contradictory, because the level always lags one slot behind.
 - WSPRnet upload: a saved `last_id` above the highest spot id in the database (the database was recreated, so the ids start again from 1) used to make
