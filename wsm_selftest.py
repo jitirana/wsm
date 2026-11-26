@@ -80,6 +80,28 @@ _bd.add_slot(_b0 + 8 * 3600, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -30
 assert "20m" not in _bd.noise_baseline(14, now=_b0 + 4 * 86400)                      # too few slots
 assert "base" in _bd.history(_b0 - 60) and "events" in _bd.history(_b0 - 60)
 print("events and typical noise: ok")
+import math as _m                                   # before/after of an event and level shifts found by themselves
+_cd = wsm_db.DB(os.path.join(tmp, "cmp.sqlite"), "HI03", (-6.0, -39.0))
+_c0 = (int(_n0) // 86400 - 1) * 86400 + 6 * 3600
+_ts_step = _c0 + 5400
+for _i in range(90):                                 # 3 h of 2-minute slots: 20 m steps up 2 dB at 1 h 30 min, 30 m stays flat
+    _t = _c0 + _i * 120
+    _cd.add_slot(_t, "20m", 14095600, "rsp2", "HIZ", 30, 62500, 0.1, -31 + (2 if _t >= _ts_step else 0), "ok", "", -44 + (2 if _t >= _ts_step else 0) + 0.3 * _m.sin(_i * 1.7))
+    _cd.add_slot(_t + 1, "30m", 10138700, "rsp2", "HIZ", 30, 62500, 0.1, -31, "ok", "", -44 + 0.3 * _m.sin(_i * 2.3))
+for _t in (_c0, _c0 + 120, _c0 + 240, _c0 + 360, _c0 + 480, _c0 + 600, _c0 + 3 * 3600 - 600, _c0 + 3 * 3600 - 480, _c0 + 3 * 3600 - 360, _c0 + 3 * 3600 - 240):
+    _cd.add_slot(_t + 2, "10m", 28126100, "rsp2", "HIZ", 30, 62500, 0.1, -40, "ok", "", -55 if _t < _c0 + 3600 else -50)   # 10 m: 5 dB apart but 2.5 h of gap in between
+_st = _cd.noise_steps(_c0 - 60)
+assert [x["band"] for x in _st] == ["20m"] and abs(_st[0]["ts"] - _ts_step) <= 120 and abs(_st[0]["delta"] - 2.0) < 0.3, _st      # 30 m flat; 10 m is a gap, not a step
+_e1 = _cd.add_event(_ts_step - 4000, "wire on"); _e2 = _cd.add_event(_ts_step, "LED on"); _e3 = _cd.add_event(_ts_step + 3000, "LED off")
+_ef = _cd.event_effect(_e2, before_min=30, settle_min=6, after_min=30, now=_c0 + 4 * 3600)
+_bd2 = {b["band"]: b for b in _ef["bands"]}
+assert abs(_bd2["20m"]["delta"] - 2.0) < 0.3 and _bd2["20m"]["clear"] and abs(_bd2["20m"]["rms_delta"] - 2.0) < 0.01, _bd2
+assert abs(_bd2["30m"]["delta"]) < 0.3 and not _bd2["30m"]["clear"] and "10m" not in _bd2, _bd2
+assert _ef["a"][0] >= _ts_step - 4000 + 360 and _ef["b"][1] <= _ts_step + 3000                     # windows stop at the neighbouring events
+assert _cd.event_effect(99999) is None
+_ef2 = _cd.event_effect(_e3, before_min=30, settle_min=6, after_min=30, now=_ts_step + 3000 + 300)   # nothing recorded after the last event yet
+assert _ef2["bands"] == [], _ef2
+print("before/after and noise shifts: ok")
 import wsm_wsprnet                                  # the saved upload state must follow the database (ids restart from 1 in a new one)
 _st = wsm_wsprnet.settings(cfg); _top = wsm_wsprnet._max_id(db); _lg = []
 wsm_wsprnet._save(cfg, {}); assert wsm_wsprnet.initial_state(cfg, db, _st, _lg.append)["last_id"] == _top
@@ -116,6 +138,13 @@ assert json.loads(urllib.request.urlopen(u + "api/history?hours=1").read())["eve
 assert "bands" in json.loads(urllib.request.urlopen(u + "api/missed?hours=24").read())
 assert "evAdd" in wsm_web.PAGE and "relN" in wsm_web.PAGE and "loadMiss" in wsm_web.PAGE
 print("events, typical noise and missed API: ok")
+try:
+    urllib.request.urlopen(u + "api/effect?id=999999"); raise SystemExit("effect of an unknown event answered")
+except urllib.error.HTTPError as _e:
+    assert _e.code == 404
+assert "steps" in json.loads(urllib.request.urlopen(u + "api/steps?hours=24").read())
+assert "loadEffect" in wsm_web.PAGE and "loadSteps" in wsm_web.PAGE and "axf" in wsm_web.PAGE and "dec:true" in wsm_web.PAGE
+print("effect and steps API: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):
     time.sleep(int(os.environ["WSM_KEEP"]))

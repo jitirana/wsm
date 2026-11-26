@@ -1,4 +1,5 @@
 """wsm_db.py - SQLite storage of the WSM: one row per 2-minute slot that was listened to and one row per decoded spot."""
+import math
 import re
 import sqlite3
 import threading
@@ -241,6 +242,103 @@ class DB:
             m = len(v) // 2
             out.setdefault(band, [None] * 24)[h] = round(v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2, 2)
         return out
+
+    # ---- before/after of a change ----
+    @staticmethod
+    def _mean_sd(v):
+        n = len(v)
+        m = sum(v) / n
+        sd = math.sqrt(sum((x - m) ** 2 for x in v) / (n - 1)) if n > 1 else 0.0
+        return m, sd
+
+    def window_stats(self, t0, t1):
+        """slots with t0 <= ts < t1 -> {band: dict(n, noise, noise_sd, rms)} (mean noise_db and stream power, dB)"""
+        by = {}
+        with self.lock:
+            for band, nz, rms in self.con.execute(
+                    "SELECT band, noise_db, rms_db FROM slots WHERE ts>=? AND ts<? AND noise_db IS NOT NULL AND status IN ('ok','partial')",
+                    (int(t0), int(t1))):
+                by.setdefault(band, []).append((nz, rms))
+        out = {}
+        for band, v in by.items():
+            m, sd = self._mean_sd([a for a, _ in v])
+            r = [b for _, b in v if b is not None]
+            out[band] = dict(n=len(v), noise=m, noise_sd=sd, rms=sum(r) / len(r) if r else None)
+        return out
+
+    def event_effect(self, event_id, before_min=30, settle_min=10, after_min=30, now=None):
+        """what changed in each band around an event: the mean noise in the `before_min` minutes before it against the mean from
+        `settle_min` minutes after it (lamps and power supplies take minutes to settle) for `after_min` minutes. Both windows stop at the
+        neighbouring events, so another change does not leak in. -> dict(event, a=[t0,t1], b=[t0,t1], bands=[...]) or None"""
+        now = int(now or time.time())
+        with self.lock:
+            ev = self.con.execute("SELECT id, ts, text FROM events WHERE id=?", (int(event_id),)).fetchone()
+            if not ev:
+                return None
+            prev = self.con.execute("SELECT MAX(ts) FROM events WHERE ts<?", (ev["ts"],)).fetchone()[0]
+            nxt = self.con.execute("SELECT MIN(ts) FROM events WHERE ts>?", (ev["ts"],)).fetchone()[0]
+        t, settle = ev["ts"], settle_min * 60
+        a0, a1 = t - before_min * 60, t
+        if prev is not None:
+            a0 = max(a0, prev + settle)
+        b0 = t + settle
+        b1 = min(b0 + after_min * 60, nxt if nxt is not None else b0 + after_min * 60, now)
+        sa = self.window_stats(a0, a1) if a1 > a0 else {}
+        sb = self.window_stats(b0, b1) if b1 > b0 else {}
+        bands = []
+        for band in sorted(set(sa) & set(sb)):
+            a, b = sa[band], sb[band]
+            if a["n"] < 2 or b["n"] < 2:
+                continue
+            d = b["noise"] - a["noise"]
+            se = math.sqrt(a["noise_sd"] ** 2 / a["n"] + b["noise_sd"] ** 2 / b["n"])
+            bands.append(dict(band=band, n_before=a["n"], n_after=b["n"], before=round(a["noise"], 2), after=round(b["noise"], 2),
+                              delta=round(d, 2), se=round(se, 2),
+                              rms_delta=None if a["rms"] is None or b["rms"] is None else round(b["rms"] - a["rms"], 2),
+                              clear=bool(abs(d) >= 0.5 and abs(d) > 2 * se)))
+        return dict(event=dict(ev), a=[a0, a1], b=[b0, b1], bands=bands)
+
+    def noise_steps(self, since, min_db=1.5, k=4, gap_s=1800, sep_s=1200):
+        """level shifts of the noise, found without anybody saying what changed: for each band the median of k slots after a point against the
+        median of the k slots before it, in runs of the same band without a gap of more than `gap_s` seconds (the rotation leaves other
+        bands in between, but not for long). A shift needs at least `min_db` and 3 times the scatter of the data; of several candidates close to
+        each other (`sep_s`) only the largest is kept. -> [dict(ts, band, before, after, delta)] oldest first"""
+        by = {}
+        with self.lock:
+            for ts, band, nz in self.con.execute(
+                    "SELECT ts, band, noise_db FROM slots WHERE ts>=? AND noise_db IS NOT NULL AND status IN ('ok','partial') ORDER BY ts",
+                    (int(since),)):
+                by.setdefault(band, []).append((ts, nz))
+
+        def med(v):
+            v = sorted(v)
+            m = len(v) // 2
+            return v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2
+
+        found = []
+        for band, rows in by.items():
+            segs, cur = [], []
+            for r in rows:
+                if cur and r[0] - cur[-1][0] > gap_s:
+                    segs.append(cur)
+                    cur = []
+                cur.append(r)
+            segs.append(cur)
+            cand = []
+            for seg in segs:
+                for i in range(k, len(seg) - k + 1):
+                    bef, aft = [x for _, x in seg[i - k:i]], [x for _, x in seg[i:i + k]]
+                    mb, ma = med(bef), med(aft)
+                    scatter = max(0.3, 1.4826 * med([abs(x - mb) for x in bef] + [abs(x - ma) for x in aft]))
+                    d = ma - mb
+                    if abs(d) >= min_db and abs(d) >= 3 * scatter * math.sqrt(2.0 / k):
+                        cand.append((abs(d), seg[i][0], mb, ma))
+            kept = []
+            for ad, ts, mb, ma in sorted(cand, reverse=True):
+                if all(abs(ts - t2) > sep_s for _, t2, _, _ in kept):
+                    kept.append((ad, ts, mb, ma))
+            found += [dict(ts=ts, band=band, before=round(mb, 2), after=round(ma, 2), delta=round(ma - mb, 2)) for _, ts, mb, ma in kept]
+        return sorted(found, key=lambda x: x["ts"])
 
     def history(self, since, bucket=300):
         """health over time for the graphs: computer (syshist) and slots (coverage, input level per band).

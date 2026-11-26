@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **Before/after of an event.** A **Δ** button beside each event in Health history shows, per band, the mean noise before the event against the
+  mean after it (the first `settle` minutes are skipped, default 10, adjustable, so a lamp or a power supply can settle; both windows stop at the
+  neighbouring events), the change in dB, the change of the stream power, and whether it is larger than twice the standard error of the slots
+  ("clear change" or "within the normal scatter"). `api/effect?id=..&before=30&settle=10&after=30` (never public). Tested with a synthetic step.
+- **Noise shifts found by themselves.** Under the events, "Noise shifts found" lists level changes of 1.5 dB or more (median of 4 slots after a
+  point against 4 before, in runs of the same band without a gap of more than 30 minutes, at least 3 times the scatter; one per 20 minutes and
+  band). A shift that follows an event is tagged with it; the others have a **mark** button that prepares an event at that time.
+  `api/steps?hours=..` (never public). A flat band and a band with a long gap are not reported (tested).
+- The noise and stream charts show one decimal on the axis when the range is under 8 dB, and one decimal in the hover (it was rounded to whole dB).
 - **Events on the charts.** Health history has a text field, an optional time and a "+ mark event" button: what you did ("LED on", "fan off", "cable moved")
   is stored in the new `events` table and drawn as a dashed violet line with its text on every chart; the list under the charts deletes an event
   with the x. Added `POST /api/event` and `POST /api/event/delete` (need the key, never public; a cross-site form cannot call them: SameSite=Strict

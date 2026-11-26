@@ -135,6 +135,8 @@ Distance and bearing are from the station locator.</p></div>
 <div class="tools"><input id="evText" maxlength="80" size="28" placeholder="event, e.g. LED on, fan off" aria-label="event text"><input id="evT" type="time" title="local time of the event; empty = now" aria-label="event time"><button id="evAdd">+ mark event</button></div>
 <div class="charts"><div class="chart" id="cTemp"></div><div class="chart" id="cClk"></div><div class="chart" id="cCov"></div><div class="chart" id="cNoise"></div><div class="chart" id="cLvl"></div></div>
 <p class="note" id="evList"></p>
+<div class="tw" id="effBox"></div>
+<p class="note" id="stepList"></p>
 <p class="note">Computer and receiver over time; move the pointer (or touch) over a chart to read the values. Only visible with the key.</p></div>
 <div class="panel" id="missP" style="display:none"><h2><b class="ht">Heard by others, not by me<button class="hq" data-h="missed" aria-label="explain">?</button></b><span id="missInfo"></span></h2>
 <div class="tools"><button data-m="6">6 h</button><button data-m="24" class="on">24 h</button><button data-m="48">48 h</button></div>
@@ -159,7 +161,7 @@ const HELP={
  wf:"A picture of the last 2-minute slot of a band, from the same samples the decoder used. Frequency goes across (+-150 Hz around the centre of the WSPR window), time downwards. Each WSPR transmission is a thin, slightly wavy vertical line about 110 s long, starting 1 s after the even minute. Decoded ones are labelled. A line from top to bottom (0 to 120 s), perfectly straight, is not WSPR but a steady carrier or interference.",
  bands:"For each band in the period: <b>Slots</b> = 2-minute recordings made, <b>Spots</b> = transmissions decoded, <b>Stations</b> = different callsigns, <b>Last slot</b> = when the band was last listened to. Many slots and no spots = band closed at that time, or the antenna is weak there.",
  missed:"Signals that other receivers in the region of this station decoded in a slot where this receiver was listening to the same band, taken from the public WSPRnet database (wspr.live; paths of 500 km or more, other stations within about 650 km). The path to a receiver that close is nearly the same as to this one, so propagation does not explain a miss: it is a measure of the station (antenna, noise, receiver). <b>Heard by them</b> = transmissions (one per slot and callsign) decoded by at least one other receiver; <b>Heard by me</b> = how many of these this receiver also decoded; <b>Strongest miss</b> = the best SNR the neighbours had for a transmission I missed. A miss at +5 dB is a real problem, one at -28 dB is at the limit of every receiver. The list shows the missed transmissions, the strongest first. The data is refreshed every hour, so the newest slots may be missing, and a region with few other receivers gives small numbers.",
- hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made. Type what you did (\"LED on\", \"fan off\") and press <b>+ mark event</b>: a dashed violet line with the text appears on every chart at that moment (set the time field if it was earlier); the × beside an event in the list deletes it. <b>noise vs typical hour</b> shows each band's noise minus its median at the same hour of the day over the last 14 days, so the daily drift of the band is removed and a local source, a storm or a change you made stands out (0 = typical; needs 2 days of data). The computer rows are written every 5 minutes, the slot rows every 2 minutes.",
+ hist:"How the computer and the receiver behaved over time. <b>CPU temperature</b>: the dashed line is the alert level. <b>CPU clock</b>: the lowest clock in each interval; drops to 600 MHz mean under-voltage or overheating (red marks = under-voltage seen). <b>Slot coverage</b>: share of the samples recorded in each slot; below 100 % the computer lost samples. <b>Noise in the WSPR window</b>: the noise the decoder works against (the 200 Hz around the WSPR signals, a few weak signals do not count), in dB re full scale in 2500 Hz, the bandwidth of the SNR figure: signal level = noise + SNR. A drop here costs spots, a rise gains them. <b>Stream power</b>: mean power of everything the radio hears in about 62 kHz; it also rises with strong signals or interference far from the WSPR window, so it can move without changing the decoding. Gaps = WSM was not running. Use <b>1 h</b> to watch the effect of a change you just made. <b>Δ</b> beside an event shows what changed around it: the mean noise per band before the event against the mean after it (the first minutes are skipped, so a lamp or a power supply can settle; both windows stop at the neighbouring events), with the change in dB and whether it is larger than the normal scatter of the slots. <b>Noise shifts found</b> lists level changes of 1.5 dB or more that the system detected by itself; the ones that follow an event are tagged with it, the others have a <b>mark</b> button that prepares an event at that time. Type what you did (\"LED on\", \"fan off\") and press <b>+ mark event</b>: a dashed violet line with the text appears on every chart at that moment (set the time field if it was earlier); the × beside an event in the list deletes it. <b>noise vs typical hour</b> shows each band's noise minus its median at the same hour of the day over the last 14 days, so the daily drift of the band is removed and a local source, a storm or a change you made stands out (0 = typical; needs 2 days of data). The computer rows are written every 5 minutes, the slot rows every 2 minutes.",
  map:"Every station of the spot list below, placed at the centre of its locator square and coloured by band. Lines are great-circle paths, the shortest way over the globe, roughly the way the signal travelled. Tap a dot for details. The <b>shaded part is night</b> right now: low bands (80, 40, 30 m) carry far when the path is in darkness, high bands (15, 10 m) need daylight. The edge of the shade is the <b>grey line</b> (sunrise / sunset), often good for long distance.",
  spots_p:"Every transmission decoded, newest first. Filter by period, band or callsign (* is a wildcard: PY*). <b>hide my TX</b> leaves your own beacon out. CSV downloads what is shown.",
  time:"Start of the 2-minute slot, in UTC (the time used by all radio amateurs). Hover a time to see your local time.",
@@ -282,9 +284,10 @@ function chart(id,title,unit,series,o){
  if(lo==null)lo=all.length?Math.min(...all):0;if(hi==null)hi=all.length?Math.max(...all):1;
  for(const l of o.lines||[]){hi=Math.max(hi,l.y);lo=Math.min(lo,l.y)}
  if(hi-lo<1e-9){hi+=1;lo-=1}const pad=(hi-lo)*.08;if(o.ymin==null)lo-=pad;if(o.ymax==null)hi+=pad;
+ const axf=o.dec&&(hi-lo)<8?(x=>x.toFixed(1)):(o.fmt||(x=>Math.round(x)));
  const X=t=>L+(t-o.t0)/(o.t1-o.t0)*iw,Y=v=>T+(1-(v-lo)/(hi-lo))*ih;
  let g="";const ny=4;
- for(let i=0;i<=ny;i++){const v=lo+(hi-lo)*i/ny,y=Y(v);g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text class="ax" x="${L-4}" y="${y+3}" text-anchor="end">${(o.fmt||(x=>Math.round(x)))(v)}</text>`}
+ for(let i=0;i<=ny;i++){const v=lo+(hi-lo)*i/ny,y=Y(v);g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text class="ax" x="${L-4}" y="${y+3}" text-anchor="end">${axf(v)}</text>`}
  const span=o.t1-o.t0,stepX=span<=2*3600?600:span<=6*3600?3600:span<=48*3600?6*3600:span<=8*86400?86400:5*86400;
  const tz=new Date().getTimezoneOffset()*60;
  for(let t=Math.ceil((o.t0-tz)/stepX)*stepX+tz;t<=o.t1;t+=stepX){const x=X(t);g+=`<line class="gl" x1="${x}" x2="${x}" y1="${T}" y2="${T+ih}"/><text class="ax" x="${x}" y="${H-5}" text-anchor="middle">${stepX>=86400?new Date(t*1000).toLocaleDateString([],{day:"2-digit",month:"2-digit"}):fmtLocal(t)}</text>`}
@@ -303,7 +306,7 @@ function chart(id,title,unit,series,o){
  const move=e=>{const r=svg.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*W;if(px<L||px>W-R){tt.style.display="none";xh.setAttribute("visibility","hidden");return}
   const t=o.t0+(px-L)/iw*(o.t1-o.t0);let rows=[],best=null;
   for(const s of series){let nb=null;for(const p of s.pts)if(p[1]!=null&&(nb==null||Math.abs(p[0]-t)<Math.abs(nb[0]-t)))nb=p;
-   if(nb&&Math.abs(nb[0]-t)<=o.step*1.5){rows.push(`<span style="color:${s.color}">●</span> ${series.length>1?esc(s.label)+" ":""}<b>${(o.fmt||(x=>x))(nb[1])}</b> ${unit}`);best=best||nb}}
+   if(nb&&Math.abs(nb[0]-t)<=o.step*1.5){rows.push(`<span style="color:${s.color}">●</span> ${series.length>1?esc(s.label)+" ":""}<b>${(o.tfmt||o.fmt||(x=>x))(nb[1])}</b> ${unit}`);best=best||nb}}
   if(!rows.length){tt.style.display="none";return}
   const x=X(best[0]);xh.setAttribute("x1",x);xh.setAttribute("x2",x);xh.setAttribute("visibility","visible");
   tt.innerHTML=fmtLocal(best[0],true)+"<br>"+rows.join("<br>");tt.style.display="block";
@@ -334,20 +337,20 @@ function drawHist(){
  const nser=bands.map(b=>({pts:sl.filter(r=>r.band===b&&r.noise_db!=null).map(r=>[r.ts,nz(b,r)]),color:bandColor(b),label:b}));
  if(rel&&!nser.some(s=>s.pts.some(p=>p[1]!=null)))$("cNoise").innerHTML='<h3>Noise vs typical for the hour</h3><p class="mute" style="height:150px;margin:0;padding-top:50px;text-align:center">not enough history yet: it needs 2 days with at least 8 slots in the same hour of the band</p>';
  else chart("cNoise",rel?"Noise vs typical for the hour, per band":"Noise in the WSPR window, per band","dB",nser,
-  {events:EV,t0,t1,step:nStep,lines:rel?[{y:0,label:"typical",color:"#6b7280"}]:[],fmt:rel?(v=>(v>0?"+":"")+v.toFixed(1)):(v=>v.toFixed(0))});
+  {events:EV,t0,t1,step:nStep,lines:rel?[{y:0,label:"typical",color:"#6b7280"}]:[],fmt:rel?(v=>(v>0?"+":"")+v.toFixed(1)):(v=>v.toFixed(0)),dec:true,tfmt:rel?(v=>(v>0?"+":"")+v.toFixed(1)):(v=>v.toFixed(1))});
  chart("cLvl","Stream power per band (62 kHz wide)","dB",bands.map(b=>({pts:sl.filter(r=>r.band===b).map(r=>[r.ts,r.rms_db]),color:bandColor(b),label:b})),
-  {events:EV,t0,t1,step:nStep,fmt:v=>v.toFixed(0)})}
+  {events:EV,t0,t1,step:nStep,fmt:v=>v.toFixed(0),dec:true,tfmt:v=>v.toFixed(1)})}
 async function loadHist(force){
  if(!document.body.classList.contains("auth"))return;
  if(!force&&Date.now()-histT<60000){return}
  histT=Date.now();
  try{histData=await fetch("api/history?hours="+histH).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("histP").style.display="none";return}
- drawHist();evList()}
+ drawHist();evList();loadSteps();if(effId)loadEffect(effId)}
 for(const b of document.querySelectorAll("#histP .tools button[data-h]"))b.addEventListener("click",()=>{histH=+b.dataset.h;
  for(const x of document.querySelectorAll("#histP .tools button[data-h]"))x.classList.toggle("on",x===b);loadHist(true)});
 $("relN").addEventListener("click",e=>{relOn=!relOn;e.currentTarget.classList.toggle("on",relOn);drawHist()});
 function evList(){const ev=(histData&&histData.events)||[];
- $("evList").innerHTML=ev.length?"Events: "+ev.map(e=>`${esc(fmtLocal(e.ts))} ${esc(e.text)} <button class="evx" data-id="${+e.id}" title="delete this event" aria-label="delete event">×</button>`).join(" · "):""}
+ $("evList").innerHTML=ev.length?"Events: "+ev.map(e=>`${esc(fmtLocal(e.ts))} ${esc(e.text)} <button class="evx evd" data-id="${+e.id}" title="what changed around this event (before / after)" aria-label="before and after">Δ</button><button class="evx" data-id="${+e.id}" title="delete this event" aria-label="delete event">×</button>`).join(" · "):""}
 async function evPost(path,obj){const r=await fetch(path,{method:"POST",headers:{"X-WSM":"1","Content-Type":"application/json"},body:JSON.stringify(obj)});if(!r.ok)throw 0}
 async function evAdd(){const text=$("evText").value.trim();if(!text)return;let ts=Date.now()/1000;const tv=$("evT").value;
  if(tv){const [h,m]=tv.split(":").map(Number),d=new Date();d.setHours(h,m,0,0);ts=d.getTime()/1000;if(ts>Date.now()/1000+60)ts-=86400}
@@ -355,8 +358,30 @@ async function evAdd(){const text=$("evText").value.trim();if(!text)return;let t
 $("evAdd").addEventListener("click",evAdd);
 $("evText").addEventListener("keydown",e=>{if(e.key==="Enter")evAdd()});
 $("evList").addEventListener("click",async e=>{const b=e.target.closest(".evx");if(!b)return;
+ if(b.classList.contains("evd")){loadEffect(+b.dataset.id);return}
  try{await evPost("api/event/delete",{id:+b.dataset.id});loadHist(true)}catch(x){$("evList").textContent="Could not delete the event."}});
 let rsz;addEventListener("resize",()=>{clearTimeout(rsz);rsz=setTimeout(drawHist,200)});
+// ---- what changed around an event, and level shifts found automatically ----
+let effId=0;
+async function loadEffect(id){
+ effId=id;const st=Math.max(0,Math.min(60,Math.round(+((document.getElementById("effSettle")||{}).value)||10)));let d;
+ try{d=await fetch(`api/effect?id=${id}&settle=${st}`).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("effBox").textContent="Could not read the effect of this event.";return}
+ const w=a=>fmtLocal(a[0])+"–"+fmtLocal(a[1]),sg=v=>(v>0?"+":"")+v.toFixed(1);
+ let h=`<p class="note"><b>${esc(d.event.text)}</b> at ${esc(fmtLocal(d.event.ts))}: before ${w(d.a)} against after ${w(d.b)}. Settle <input id="effSettle" type="number" min="0" max="60" value="${st}" style="width:64px"> min after the event are skipped; each window stops at the neighbouring events. <button id="effX" class="evx" title="close">×</button></p>`;
+ h+=d.bands.length?"<table><tr><th>Band</th><th>Noise before</th><th>Noise after</th><th>Change</th><th>Stream</th><th></th></tr>"+d.bands.map(b=>
+  `<tr><td>${esc(b.band)}</td><td>${b.before.toFixed(1)} dB (${b.n_before})</td><td>${b.after.toFixed(1)} dB (${b.n_after})</td><td><b>${sg(b.delta)} dB</b></td><td>${b.rms_delta==null?"–":sg(b.rms_delta)+" dB"}</td><td>${b.clear?"clear change":"within the normal scatter"}${Math.min(b.n_before,b.n_after)<4?" (few slots)":""}</td></tr>`).join("")+"</table>"
+  :'<p class="mute">No band has 2 or more slots on both sides of this event (the rotation spreads the slots over the bands: try a shorter settle time, or listen to one band while testing).</p>';
+ $("effBox").innerHTML=h;
+ $("effSettle").addEventListener("change",()=>loadEffect(effId));$("effX").addEventListener("click",()=>{$("effBox").innerHTML="";effId=0})}
+async function loadSteps(){
+ let d;try{d=await fetch("api/steps?hours="+Math.min(72,histH)).then(r=>{if(!r.ok)throw 0;return r.json()})}catch(e){$("stepList").innerHTML="";return}
+ const ev=(histData&&histData.events)||[],st=(d.steps||[]).slice(-8);
+ if(!st.length){$("stepList").textContent="No noise shift of 1.5 dB or more found in this period.";return}
+ $("stepList").innerHTML="Noise shifts found: "+st.map(x=>{
+  const n=ev.find(e=>(x.ts-e.ts>=0&&x.ts-e.ts<=1200)||(e.ts-x.ts>0&&e.ts-x.ts<=300));
+  return `${esc(fmtLocal(x.ts))} ${esc(x.band)} <b>${x.delta>0?"+":""}${x.delta.toFixed(1)} dB</b> (${x.before.toFixed(1)} → ${x.after.toFixed(1)})${n?" · after “"+esc(n.text)+"”":` <button class="evx stm" data-ts="${x.ts}" title="mark an event at this time">mark</button>`}`}).join(" · ")}
+$("stepList").addEventListener("click",e=>{const b=e.target.closest(".stm");if(!b)return;
+ const d=new Date(+b.dataset.ts*1000),p=n=>String(n).padStart(2,"0");$("evT").value=p(d.getHours())+":"+p(d.getMinutes());$("evText").focus()});
 // ---- heard by the neighbouring receivers, not by me ----
 let missH=24,missT=0;
 async function loadMiss(force){
@@ -722,6 +747,11 @@ class Handler(BaseHTTPRequestHandler):
                 hc = st.cfg.get("health") or {}
                 h.update(hours=hours, temp_max_c=float(hc.get("temp_max_c", 75)), coverage_min=float(hc.get("coverage_min", 95)))
                 return self._json(h)
+            if p == "/api/effect":                                   # before/after of an event (never public)
+                r = db.event_effect(num("id", 0, 0, 2 ** 40), num("before", 30, 5, 240), num("settle", 10, 0, 60), num("after", 30, 5, 240))
+                return self._json(r) if r else self._send(404, "no such event", "text/plain; charset=utf-8")
+            if p == "/api/steps":                                    # level shifts of the noise found automatically (never public)
+                return self._json(dict(steps=db.noise_steps(time.time() - num("hours", 24, 1, 72) * 3600)))
             if p == "/api/missed":                                   # what the neighbouring receivers decoded and I did not (never public)
                 import wsm_missed
                 hours = num("hours", 24, 1, 24 * 7)
