@@ -88,6 +88,8 @@ tr:hover td{background:color-mix(in srgb,var(--chip) 60%,transparent)}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
 .mute{color:var(--mute)}
 body.pub #csv{display:none}body.pub #pubTag{display:inline-block}
+.acct{display:none;border:1px solid var(--line);background:none;color:var(--acc);font:inherit;font-size:13px;font-weight:600;padding:2px 10px;border-radius:999px;margin-right:8px;cursor:pointer;text-decoration:none}
+body.pub .acct.in{display:inline-block}body.auth.keyed .acct.out{display:inline-block}
 #pubTag{display:none;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mute)}
 .note{color:var(--mute);font-size:13px;margin-top:8px}
 .cx{border:0;background:none;color:var(--mute);padding:0 4px;font-size:13px}
@@ -102,7 +104,7 @@ body.pub #csv{display:none}body.pub #pubTag{display:inline-block}
 <link rel="stylesheet" href="static/leaflet.css">
 </head><body><main>
 <header><h1>WSM <small>WSPR System Monitor</small></h1><span id="who" class="mute"></span><span id="pubTag" title="you are seeing the public view of this station">public view</span>
-<span style="flex:1"></span><a href="/about" style="color:var(--acc);text-decoration:none;font-weight:600;margin-right:12px">What is WSPR?</a><span id="upd" class="mute"></span></header>
+<span style="flex:1"></span><a href="/about" style="color:var(--acc);text-decoration:none;font-weight:600;margin-right:12px">What is WSPR?</a><a class="acct in" href="/login">log in</a><button class="acct out" id="logoutB" title="end the session in this browser">log out</button><button class="acct out" id="logoutAll" title="end the session in every browser and phone that logged in">log out everywhere</button><span id="upd" class="mute"></span></header>
 <div class="cards" id="cards"></div>
 <div class="panel" id="wfP" style="display:none"><h2><b class="ht">Last slot · waterfall<button class="hq" data-h="wf" aria-label="explain">?</button></b><span id="wfInfo"></span></h2>
 <div class="tools" id="wfTabs"></div>
@@ -402,6 +404,12 @@ async function loadTherm(){
  const m=v=>v==null?"–":v<1&&v>0?"<1 min":Math.round(v)+" min",t=v=>v==null?"–":v.toFixed(1)+" °C";
  $("thermBox").innerHTML='<h3>CPU slowdowns per day <span class="mute">(local days, last 14)</span></h3><table><tr><th>Day</th><th>Recorded</th><th>Temp mean / max</th><th>Slowed by firmware</th><th>Clock &lt; 1000 MHz</th><th>Under-voltage</th><th>Slots</th><th>Short slots</th><th>Short while slowed</th></tr>'+
   rows.map(r=>`<tr><td>${esc(r.day)}</td><td>${(r.minutes/60).toFixed(1)} h</td><td>${t(r.temp_mean)} / ${t(r.temp_max)}</td><td>${r.capped_min>0?"<b>"+m(r.capped_min)+"</b>":m(r.capped_min)}</td><td>${m(r.low_clock_min)}</td><td>${r.uv_min>0?"<b>"+m(r.uv_min)+"</b>":m(r.uv_min)}</td><td>${r.slots}</td><td>${r.short}</td><td>${r.short_slow?"<b>"+r.short_slow+"</b>":r.short_slow}</td></tr>`).join("")+"</table>"}
+// ---- log out (this browser, or every browser: the server makes a new session) ----
+async function logout(all){
+ if(all&&!confirm("End the session in every browser and phone? Each one will need the key again."))return;
+ try{await fetch("api/logout",{method:"POST",headers:{"X-WSM":"1","Content-Type":"application/json"},body:JSON.stringify({all:!!all})})}catch(e){}
+ location.href="/"}
+$("logoutB").addEventListener("click",()=>logout(false));$("logoutAll").addEventListener("click",()=>logout(true));
 // ---- heard by the neighbouring receivers, not by me ----
 let missH=24,missT=0;
 async function loadMiss(force){
@@ -486,7 +494,7 @@ async function load(){
   const per=all?"all time":$("per").selectedOptions[0].textContent;    // the label as shown in the selector ("last 7 days", not "last 168 h")
   const [st,sm,sp,sy]=await Promise.all([fetch("api/status").then(r=>r.json()),fetch("api/summary?hours="+hrs+($("noOwn").checked?"&noown=1":"")).then(r=>r.json()),fetch("api/spots?"+q()+"&limit=1000").then(r=>r.json()),fetch("api/system").then(r=>r.json()).catch(()=>({}))]);
   const s=st.station,m=st.map;
-  document.body.classList.toggle("pub",!st.auth);document.body.classList.toggle("auth",!!st.auth);
+  document.body.classList.toggle("pub",!st.auth);document.body.classList.toggle("auth",!!st.auth);document.body.classList.toggle("keyed",!!st.keyed);
   $("who").innerHTML=esc(s.callsign)+" · "+(m?`<a href="${esc(m)}" target="_blank" rel="noopener">${esc(s.grid)}</a>`:esc(s.grid));
   $("hrsB").textContent=per;
   let cards="";
@@ -641,22 +649,38 @@ class Handler(BaseHTTPRequestHandler):
                 got = v
         if got and hmac.compare_digest(got, sess):
             return True, None
-        key = q.get("key", [""])[0] or self.headers.get("X-WSM-Key", "")
+        hkey = self.headers.get("X-WSM-Key", "")                       # scripts: the key in a header, no cookie
+        ukey = q.get("key", [""])[0] if self.server.url_key else ""     # old links ?key=... (off unless web.url_key: yes)
+        key = hkey or ukey
+        if not key:
+            return False, None
+        r = self._check_key(key)
+        if r is None:
+            return None, None                                    # locked out: only key attempts are refused
+        if not r:
+            return False, None
+        return True, (self._cookie(sess) if ukey and not hkey else None)
+
+    def _check_key(self, key):
+        """True / False, or None while this client is locked out (8 wrong keys in 10 minutes). Only wrong keys count."""
+        ip, now = self._client(), time.time()
+        fails = [t for t in self.server.fails.get(ip, []) if now - t < 600]
         if len(fails) >= 8:
             self.server.fails[ip] = fails
-            # locked out: only key attempts are refused (a valid cookie still works, the public view stays open)
-            return (None, None) if key else (False, None)
-        if key and hmac.compare_digest(key.encode(), tok.encode()):
+            return None
+        if hmac.compare_digest(str(key).encode(), self.server.token.encode()):
             self.server.fails.pop(ip, None)
-            return True, f"wsm_key={sess}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000" + ("; Secure" if self._https() else "")
-        if key:                                                  # only a wrong key counts (not a bare visit, not an old cookie)
-            fails.append(now)
-            if len(self.server.fails) > 2000:
-                self.server.fails.clear()
-            self.server.fails[ip] = fails
-            if len(fails) == 8:
-                self.server.log(f"web: too many wrong keys from {ip}; locked out for 10 minutes")
-        return False, None
+            return True
+        fails.append(now)
+        if len(self.server.fails) > 2000:
+            self.server.fails.clear()
+        self.server.fails[ip] = fails
+        if len(fails) == 8:
+            self.server.log(f"web: too many wrong keys from {ip}; locked out for 10 minutes")
+        return False
+
+    def _cookie(self, value, max_age=2592000):
+        return f"wsm_key={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age={max_age}" + ("; Secure" if self._https() else "")
 
     def _page(self, name):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", name), "rb") as f:
@@ -676,9 +700,6 @@ class Handler(BaseHTTPRequestHandler):
         """operator events: POST /api/event {text, ts?} and POST /api/event/delete {id}. Needs the key; never public."""
         try:
             u = urlparse(self.path)
-            ok, _ = self._authorized(parse_qs(u.query))
-            if not ok or (self.server.public and not self.server.token):
-                return self._send(401, "restricted access", "text/plain; charset=utf-8")
             if self.headers.get("X-WSM") != "1":                       # a form on another site cannot set this header
                 return self._send(403, "forbidden", "text/plain; charset=utf-8")
             try:
@@ -692,6 +713,23 @@ class Handler(BaseHTTPRequestHandler):
                 assert isinstance(body, dict)
             except (ValueError, AssertionError):
                 return self._send(400, "bad json", "text/plain; charset=utf-8")
+            if u.path == "/api/login":                                 # the login form: {key} -> session cookie
+                if not self.server.token:
+                    return self._json(dict(ok=True))
+                r = self._check_key(body.get("key") or "")
+                if r is None:
+                    return self._send(429, "too many attempts", "text/plain; charset=utf-8", {"Retry-After": "600"})
+                if not r:
+                    return self._send(401, "wrong key", "text/plain; charset=utf-8")
+                return self._send(200, '{"ok":true}', "application/json; charset=utf-8", {"Set-Cookie": self._cookie(self.server.session)})
+            ok, _ = self._authorized(parse_qs(u.query))
+            if not ok or (self.server.public and not self.server.token):
+                return self._send(401, "restricted access", "text/plain; charset=utf-8")
+            if u.path == "/api/logout":                                # {all: true} also ends the session of every other browser
+                if body.get("all") and self.server.token:
+                    self.server.new_session()
+                    self.server.log("web: all sessions ended (log out everywhere)")
+                return self._send(200, '{"ok":true}', "application/json; charset=utf-8", {"Set-Cookie": self._cookie("", 0)})
             db = self.server.db
             if u.path == "/api/event":
                 try:
@@ -733,12 +771,18 @@ class Handler(BaseHTTPRequestHandler):
                     if u.path in ("/", "/index.html"):
                         return self._page("station.html")
                     return self._send(404, "not found", "text/plain; charset=utf-8")
+            if u.path == "/login":                                       # public: the login form (no station data in it)
+                return self._send(200, LOGIN_PAGE, "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
             ok, setcookie = self._authorized(q)
             if ok is None:
                 return self._send(429, "too many attempts", "text/plain; charset=utf-8", {"Retry-After": "600"})
             authed = bool(ok)
             if not ok:
+                if "key" in q and u.path in ("/", "/index.html"):      # an old ?key= link: use the form instead
+                    return self._send(303, "", "text/plain", {"Location": "/login"})
                 if not (self.server.public and (u.path in PUBLIC_PATHS or u.path.startswith("/static/"))):
+                    if u.path in ("/", "/index.html"):
+                        return self._send(303, "", "text/plain", {"Location": "/login"})
                     return self._send(401, "restricted access", "text/plain; charset=utf-8")
             if setcookie:
                 return self._send(303, "", "text/plain", {"Location": "/", "Set-Cookie": setcookie})
@@ -765,7 +809,8 @@ class Handler(BaseHTTPRequestHandler):
                     if c6:
                         station.update(lat=round(c6[0], 3), lon=round(c6[1], 3))
                 return self._json(dict(station=station, map=wsm_geo.maps_url(*ll) if ll else None, radios=st.snapshot(), bands=st.bands,
-                                       uptime_s=int(time.time() - st.started), auth=authed, public=self.server.public))
+                                       uptime_s=int(time.time() - st.started), auth=authed, public=self.server.public,
+                                       keyed=bool(self.server.token)))
             own = st.cfg["station"]["callsign"]
             noown = (q.get("noown") or ["0"])[0] in ("1", "true", "yes")
             if p == "/api/summary":
@@ -834,6 +879,43 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
 
+
+LOGIN_PAGE = r"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WSM log in</title><link rel="icon" href="/favicon.svg">
+<style>
+:root{--bg:#f4f1ec;--card:#fffdf9;--ink:#1d2430;--mute:#667085;--line:#e4ded3;--acc:#0b6b8a;--bad:#b42318;--on-acc:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10151c;--card:#171e28;--ink:#e6eaf0;--mute:#9aa6b6;--line:#263041;--acc:#5ab8d8;--bad:#f0746a;--on-acc:#10151c}}
+:root[data-theme=dark]{--bg:#10151c;--card:#171e28;--ink:#e6eaf0;--mute:#9aa6b6;--line:#263041;--acc:#5ab8d8;--bad:#f0746a;--on-acc:#10151c}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+form{width:min(360px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+h1{margin:0 0 4px;font-size:22px}p{margin:0 0 18px;color:var(--mute);font-size:14px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+input{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus{outline:2px solid var(--acc);outline-offset:1px}
+button{width:100%;margin-top:14px;font:inherit;font-weight:600;padding:10px;border:0;border-radius:8px;background:var(--acc);color:var(--on-acc);cursor:pointer}
+button:disabled{opacity:.6;cursor:default}
+#msg{min-height:20px;margin-top:12px;color:var(--bad);font-size:14px}
+a{color:var(--acc);font-size:14px}
+</style></head><body>
+<form id="f" autocomplete="on">
+<h1>WSM</h1><p>WSPR System Monitor: enter the station key (web.token).</p>
+<input type="text" name="username" value="wsm" autocomplete="username" hidden>
+<label for="k">Key</label><input id="k" name="password" type="password" autocomplete="current-password" required autofocus>
+<button id="b" type="submit">Log in</button>
+<div id="msg" role="alert"></div>
+<a href="/">public view</a>
+</form>
+<script>
+document.getElementById("f").addEventListener("submit",async e=>{e.preventDefault();
+ const b=document.getElementById("b"),m=document.getElementById("msg");b.disabled=true;m.textContent="";
+ try{const r=await fetch("/api/login",{method:"POST",headers:{"X-WSM":"1","Content-Type":"application/json"},body:JSON.stringify({key:document.getElementById("k").value})});
+  if(r.ok){location.replace("/");return}
+  m.textContent=r.status===429?"Too many wrong keys: wait 10 minutes.":r.status===401?"Wrong key.":"Could not log in ("+r.status+")."}
+ catch(x){m.textContent="No answer from the station."}
+ b.disabled=false});
+</script></body></html>"""
+
 PUBLIC_PATHS = {"/", "/index.html", "/api/status", "/api/summary", "/api/openings", "/api/spots", "/api/waterfall", "/api/waterfall.png"}
 
 
@@ -886,7 +968,27 @@ def start(cfg, db, state, log=print):
     srv.cfg, srv.public = cfg, _yes(w.get("public")) and bool(srv.token)
     if srv.public:
         log("web: public mode - visitors without the key see spots, map and waterfall (not health, not CSV)")
-    srv.session = hmac.new(srv.token.encode(), b"wsm-session-v1", hashlib.sha256).hexdigest()
+    srv.url_key = _yes(w.get("url_key", False))
+    salt_path = os.path.join(cfg.get("data_dir") or ".", "web_session")
+
+    def new_session(rotate=True):
+        salt = ""
+        if not rotate:
+            try:
+                salt = open(salt_path).read().strip()
+            except OSError:
+                pass
+        if len(salt) < 32:
+            salt = os.urandom(16).hex()
+            try:
+                fd = os.open(salt_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w") as f:
+                    f.write(salt)
+            except OSError as e:
+                log(f"web: could not save the session salt ({e}); sessions end when WSM restarts")
+        srv.session = hmac.new(srv.token.encode(), b"wsm-session-v2:" + salt.encode(), hashlib.sha256).hexdigest()
+    srv.new_session = new_session
+    new_session(rotate=False)
     if not srv.token:
         log("web: WARNING no web.token set - the page is open to everybody who can reach it")
     elif len(srv.token) < 16:

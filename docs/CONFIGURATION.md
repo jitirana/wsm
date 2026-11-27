@@ -40,9 +40,16 @@ web:
   enabled: yes
   host: 127.0.0.1           # keep it local and publish through a tunnel
   port: 8091
-  token: ""                 # if set, open http://host:port/?key=TOKEN once (a cookie remembers it); use 16+ characters
+  token: ""                 # if set, log in at http://host:port/login (a cookie remembers it); use 16+ characters
   public: no                # yes: visitors without the key get a read-only public view (needs a token)
+  url_key: no               # yes: also accept old /?key=TOKEN links (the key then lands in history and proxy logs)
 ```
+
+**Logging in and out.** `/login` asks for the key once and sets a session cookie (HttpOnly, SameSite=Strict, 30 days).
+The header of the page has **log out** (this browser) and **log out everywhere** (every browser and phone: the server
+makes a new session, so all the old cookies stop working). Changing `token` and restarting also ends every session.
+The session is kept in `data/web_session` (mode 600). Scripts send the key in the `X-WSM-Key` header instead: they get the
+answer directly, without a cookie.
 
 The `/about` page ("What is WSPR?") is always public. Without `public`, everything else needs the token when one is set.
 With `public: yes` a visitor without the key sees the cards, waterfall, band table, map and spot list (at most 1000 spots);

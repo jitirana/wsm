@@ -64,7 +64,7 @@ One line per slot, every 2 minutes, for example:
 - the last number (decode time) should stay well below 120 s;
 - `peak` should stay below about 50 % (lower `gain_db` if it gets near 90 %).
 
-Open the web page (`http://127.0.0.1:8091/?key=YOUR_TOKEN` on the Pi, or through your tunnel). The **System** card must show
+Open the web page (`http://127.0.0.1:8091/login` on the Pi, or through your tunnel) and enter the key. The **System** card must show
 `power OK` and `coverage 100 %`.
 
 Check the real sample rate of the RSP2 once, with WSM stopped:
@@ -136,7 +136,7 @@ ingress:
   - service: http_status:404
 ```
 
-Visitors need `?key=TOKEN` once (a cookie remembers it); the `/about` page is public.
+Visitors log in once at `/login` (a cookie remembers it); the `/about` page is public.
 With `web.public: yes` visitors without the key see a read-only public view (spots, map, waterfall; no health card, no CSV,
 and the station position only to a 6-character locator square).
 

@@ -209,9 +209,31 @@ _r = _get("/api/summary?hours=inf"); assert _r.status == 200, _r.status
 assert _get("/api/spots?limit=1e309").status == 200 and _get("/").getheader("Server") == "WSM"
 _c = http.client.HTTPConnection("127.0.0.1", _hp, timeout=5); _c.request("PUT", "/"); assert _c.getresponse().status == 405; _c.close()
 for _i in range(8):
-    assert _get(f"/api/history?key=wrong{_i}").status == 401
+    assert _get("/api/history", {"X-WSM-Key": f"wrong{_i}"}).status == 401
 assert _get("/").status == 200 and _get("/api/spots").status == 200           # public view stays open while locked out
-assert _get("/api/history?key=" + "t" * 32).status == 429                      # key attempts are refused
+assert _get("/api/history", {"X-WSM-Key": "t" * 32}).status == 429             # key attempts are refused
+_hs.fails.clear()
+def _post2(path, obj, cookie=None):
+    c = http.client.HTTPConnection("127.0.0.1", _hp, timeout=10); b = json.dumps(obj)
+    h = {"X-WSM": "1", "Content-Type": "application/json"}
+    if cookie:
+        h["Cookie"] = cookie
+    c.request("POST", path, body=b, headers=h); r = c.getresponse(); r.read(); c.close(); return r
+assert _get("/login").status == 200 and b"current-password" in wsm_web.LOGIN_PAGE.encode()
+assert _get("/api/history", {"X-WSM-Key": "t" * 32}).status == 200             # scripts: key in a header, data at once
+assert _get("/?key=" + "t" * 32).getheader("Location") == "/login"              # ?key= is off by default
+assert _post2("/api/login", {"key": "nope"}).status == 401
+_lr = _post2("/api/login", {"key": "t" * 32}); assert _lr.status == 200
+_ck = _lr.getheader("Set-Cookie").split(";")[0]; assert "HttpOnly" in _lr.getheader("Set-Cookie")
+assert _get("/api/history", {"Cookie": _ck}).status == 200
+_ck2 = _post2("/api/login", {"key": "t" * 32}).getheader("Set-Cookie").split(";")[0]   # a second browser
+_lo = _post2("/api/logout", {}, _ck); assert _lo.status == 200 and "Max-Age=0" in _lo.getheader("Set-Cookie")
+assert _get("/api/history", {"Cookie": _ck2}).status == 200                    # plain log out: the other browser stays in
+assert _post2("/api/logout", {"all": True}, _ck2).status == 200
+assert _get("/api/history", {"Cookie": _ck2}).status == 401 and _get("/api/history", {"Cookie": _ck}).status == 401
+_ck3 = _post2("/api/login", {"key": "t" * 32}).getheader("Set-Cookie").split(";")[0]
+assert _ck3 != _ck and _get("/api/history", {"Cookie": _ck3}).status == 200
+assert open(os.path.join(_hc["data_dir"], "web_session")).read().strip() and oct(os.stat(os.path.join(_hc["data_dir"], "web_session")).st_mode)[-3:] == "600"
 _hs.fails.clear()
 _sk = socket.create_connection(("127.0.0.1", _hp)); _sk.sendall(b"GET / HTTP/1.1\r\nHost: x\r\n")   # never ends the headers
 _sk.settimeout(5); _t0 = time.time()
@@ -228,7 +250,12 @@ time.sleep(0.5); assert _get("/favicon.svg").status == 200                     #
 _hs.shutdown(); _hs.server_close()
 wsm_web.Handler.timeout, wsm_web.Server.MAX_CONN = _old_t, _old_m
 assert wsm_web._cell("=HYPERLINK(1)") == "'=HYPERLINK(1)" and wsm_web._cell("PU2TKN") == "PU2TKN" and wsm_web._cell(None) == ""
-print("web limits: ok")
+_hc2 = copy.deepcopy(_hc); _hc2["web"].update(port=_hp + 1, public=False)        # private mode: "/" leads to the form
+_hs2 = wsm_web.start(_hc2, db, state, log=lambda m: None)
+_c2 = http.client.HTTPConnection("127.0.0.1", _hp + 1, timeout=10); _c2.request("GET", "/"); _r2 = _c2.getresponse(); _r2.read()
+assert _r2.status == 303 and _r2.getheader("Location") == "/login"; _c2.close()
+_hs2.shutdown(); _hs2.server_close()
+print("web limits, login and log out: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):
     time.sleep(int(os.environ["WSM_KEEP"]))

@@ -19,7 +19,7 @@ DEFAULTS = dict(
                  wsjtx_path="",               # default: wsprd_wsjtx next to wsm_decode
                  flags=[]),                   # extra wsprd options for the wsjtx engine, e.g. ["-d"]
     web=dict(enabled=True, host="127.0.0.1", port=8091, token="",
-             public=False),                # True: visitors without the key see spots, map and waterfall (not health, not CSV)
+             public=False, url_key=False),              # True: visitors without the key see spots, map and waterfall (not health, not CSV)
     landing=dict(                          # station landing page, served when the request comes for one of `hosts`
         enabled=False, hosts=[], title="", about="", equipment=[], links=[], projects=[],
         monitor_url="", adsb_url=""),
