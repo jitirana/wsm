@@ -1,10 +1,12 @@
 """wsm_web.py - read-only web page of the WSM: spots heard (locator = link to Google Maps), band summary and receiver state."""
+import base64
 import csv
 import hashlib
 import hmac
 import io
 import json
 import os
+import re
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -598,7 +600,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code, body, ctype, extra=None):
+    def _send(self, code, body, ctype, extra=None, scripts=""):
         if isinstance(body, str):
             body = body.encode("utf-8")
         self.send_response(code)
@@ -612,7 +614,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         if self._https():
             self.send_header("Strict-Transport-Security", "max-age=31536000")
-        self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org")
+        self.send_header("Content-Security-Policy", CSP.format(scripts=(" " + scripts) if scripts else ""))
         if "Cache-Control" not in (extra or {}):
             self.send_header("Cache-Control", "no-store")
         for k, v in (extra or {}).items():
@@ -684,7 +686,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _page(self, name):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", name), "rb") as f:
-            return self._send(200, f.read(), "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
+            body = f.read()
+        return self._send(200, body, "text/html; charset=utf-8", {"Cache-Control": "no-cache"}, script_hashes(body.decode("utf-8", "replace")))
 
     def _static(self, name):
         types = {"leaflet.js": "application/javascript; charset=utf-8", "leaflet.css": "text/css; charset=utf-8"}
@@ -772,7 +775,7 @@ class Handler(BaseHTTPRequestHandler):
                         return self._page("station.html")
                     return self._send(404, "not found", "text/plain; charset=utf-8")
             if u.path == "/login":                                       # public: the login form (no station data in it)
-                return self._send(200, LOGIN_PAGE, "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
+                return self._send(200, LOGIN_PAGE, "text/html; charset=utf-8", {"Cache-Control": "no-cache"}, script_hashes(LOGIN_PAGE))
             ok, setcookie = self._authorized(q)
             if ok is None:
                 return self._send(429, "too many attempts", "text/plain; charset=utf-8", {"Retry-After": "600"})
@@ -797,7 +800,7 @@ class Handler(BaseHTTPRequestHandler):
             if p.startswith("/static/"):
                 return self._static(p[8:])
             if p in ("/", "/index.html"):
-                return self._send(200, PAGE, "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
+                return self._send(200, PAGE, "text/html; charset=utf-8", {"Cache-Control": "no-cache"}, script_hashes(PAGE))
             if p == "/api/status":
                 cfg = st.cfg["station"]
                 ll = wsm_geo.grid_to_latlon(cfg["grid"])
@@ -917,6 +920,27 @@ document.getElementById("f").addEventListener("submit",async e=>{e.preventDefaul
 </script></body></html>"""
 
 PUBLIC_PATHS = {"/", "/index.html", "/api/status", "/api/summary", "/api/openings", "/api/spots", "/api/waterfall", "/api/waterfall.png"}
+
+
+# Content-Security-Policy: scripts only from this server, plus the inline <script> blocks of the page being served, each
+# allowed by the SHA-256 of its text (no 'unsafe-inline' for scripts: an injected <script> or onclick= does not run).
+# Inline styles stay allowed (style="..." is used everywhere; CSS cannot run code).
+CSP = ("default-src 'self'; script-src 'self'{scripts}; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self'; object-src 'none'; base-uri 'none'; "
+       "form-action 'self'; frame-ancestors 'none'")
+_HASHES = {}
+
+
+def script_hashes(html):
+    """'sha256-...' sources for every inline <script> (without src) of an HTML page; cached by page text"""
+    h = _HASHES.get(html)
+    if h is None:
+        found = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S | re.I)
+        h = " ".join("'sha256-%s'" % base64.b64encode(hashlib.sha256(x.encode("utf-8")).digest()).decode() for x in found)
+        if len(_HASHES) > 16:
+            _HASHES.clear()
+        _HASHES[html] = h
+    return h
 
 
 def _cell(v):

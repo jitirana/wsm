@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Content-Security-Policy: scripts no longer run inline unless they are the page's own `<script>` blocks, allowed one by one
+  by their SHA-256 (computed when the page is served), so an injected `<script>` or `onclick=` is refused by the browser.
+  Also `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, `frame-ancestors 'none'`, `connect-src 'self'`.
+  Inline styles stay allowed. Covered by `wsm_selftest.py`.
 - Login and log out: a `/login` form asks for the key and sets the session cookie, so the key no longer travels in the
   address. The page header has **log out** (this browser) and **log out everywhere** (a new session: every old cookie stops
   working). The session comes from the token and a random value in `data/web_session`. Old `/?key=TOKEN` links lead to the

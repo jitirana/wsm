@@ -255,6 +255,16 @@ _hs2 = wsm_web.start(_hc2, db, state, log=lambda m: None)
 _c2 = http.client.HTTPConnection("127.0.0.1", _hp + 1, timeout=10); _c2.request("GET", "/"); _r2 = _c2.getresponse(); _r2.read()
 assert _r2.status == 303 and _r2.getheader("Location") == "/login"; _c2.close()
 _hs2.shutdown(); _hs2.server_close()
+_hs3 = wsm_web.start(_hc, db, state, log=lambda m: None)                       # CSP: no inline scripts but the page's own
+for _path, _html in (("/", wsm_web.PAGE), ("/login", wsm_web.LOGIN_PAGE), ("/about", open(os.path.join(here, "static", "about.html")).read())):
+    _csp = _get(_path).getheader("Content-Security-Policy"); _sc = _csp.split("script-src")[1].split(";")[0]
+    assert "unsafe-inline" not in _sc and wsm_web.script_hashes(_html) in _sc and "'sha256-" in _sc, (_path, _csp)
+    assert "object-src 'none'" in _csp and "frame-ancestors 'none'" in _csp and "base-uri 'none'" in _csp
+for _f in ("station.html", "about.html"):
+    _t = open(os.path.join(here, "static", _f)).read()
+    assert _t.count("<script") == len(wsm_web.script_hashes(_t).split()) + _t.count("<script src"), _f   # every inline script hashed
+_hs3.shutdown(); _hs3.server_close()
+assert wsm_web.script_hashes("<script>a</script><script src=x></script>") == "'sha256-ypeBEsobvcr6wjGzmiPcTaeG7/gUfE5yuYB3ha/uSLs='"
 print("web limits, login and log out: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):

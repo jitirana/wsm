@@ -40,6 +40,8 @@ The skill **`wsm-update-pi`** has the details: what needs a restart, test setup,
 - Nothing in the per-slot path may fail the slot: helpers like `window_noise`/`window_spurs` catch everything and return None.
 - Health and diagnostics are **key only**: new APIs stay out of `PUBLIC_PATHS`, and station-health fields are stripped
   from public answers.
+- Content-Security-Policy allows no inline script except the page's own `<script>` blocks, by SHA-256 (`script_hashes`):
+  never use `onclick=` / `on*=` attributes, `javascript:` links, `eval` or `new Function`; attach handlers in the script.
 - Every card, panel and table on the page has a `?` help text (the `HELP` object in the page script of `wsm_web.py`); extend it when adding one.
 - Database changes must work on an existing database (check `PRAGMA table_info`, add the column).
 - New behaviour gets a check in `wsm_selftest.py`.
