@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Web server limits: a connection that stays silent for 15 s is closed (request line, headers, body or idle keep-alive),
+  and at most 48 connections are served at once (the next ones get a short 503), so stuck clients cannot pile up threads
+  on the Pi. After too many wrong keys only key attempts are refused (429); the public view and a valid cookie keep
+  working. Numeric parameters such as `inf` or `1e309` fall back to the default instead of an error. The `Server` header
+  no longer shows the Python version, and other HTTP methods answer 405. CSV cells that a spreadsheet would run as a
+  formula get a leading `'`. Covered by `wsm_selftest.py` ("web limits").
 - Narrow spurs in the WSPR window (roadmap item 8): every slot is searched for steady carriers (`wsm_dsp.find_spurs`): 0.37 Hz
   bins, and per bin the median over the 2.7 s frames of the slot, so only a signal present the whole slot counts; a carrier must
   also hold 70 % of its energy within +-1 Hz, which a WSPR signal (4 tones over 6 Hz) never does. Simulated slots: no false spur in
