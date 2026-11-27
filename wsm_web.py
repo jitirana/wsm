@@ -577,6 +577,15 @@ class State:
 class Handler(BaseHTTPRequestHandler):
     server_version = "WSM"
     protocol_version = "HTTP/1.1"
+    timeout = 15                    # seconds a connection may stay silent (request line, headers, body, idle keep-alive)
+
+    def version_string(self):
+        return self.server_version  # no Python version in the Server header
+
+    def _no_method(self):
+        self._send(405, "method not allowed", "text/plain; charset=utf-8", {"Allow": "GET, HEAD, POST"})
+
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_TRACE = do_CONNECT = _no_method
 
     def log_message(self, *a):
         pass
@@ -632,10 +641,11 @@ class Handler(BaseHTTPRequestHandler):
                 got = v
         if got and hmac.compare_digest(got, sess):
             return True, None
+        key = q.get("key", [""])[0] or self.headers.get("X-WSM-Key", "")
         if len(fails) >= 8:
             self.server.fails[ip] = fails
-            return None, None                                    # locked out (a valid cookie still works)
-        key = q.get("key", [""])[0] or self.headers.get("X-WSM-Key", "")
+            # locked out: only key attempts are refused (a valid cookie still works, the public view stays open)
+            return (None, None) if key else (False, None)
         if key and hmac.compare_digest(key.encode(), tok.encode()):
             self.server.fails.pop(ip, None)
             return True, f"wsm_key={sess}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000" + ("; Secure" if self._https() else "")
@@ -737,7 +747,7 @@ class Handler(BaseHTTPRequestHandler):
             def num(name, default, lo, hi):
                 try:
                     return max(lo, min(hi, int(float(q.get(name, [default])[0]))))
-                except ValueError:
+                except (ValueError, OverflowError):              # "abc", "nan", "inf", "1e309"
                     return default
 
             if p.startswith("/static/"):
@@ -811,7 +821,7 @@ class Handler(BaseHTTPRequestHandler):
                 w.writerow(["time_utc", "band", "freq_hz", "snr_db", "dt_s", "drift", "call", "locator", "power_dbm", "dist_km", "bearing", "maps"])
                 for r in rows:
                     w.writerow([time.strftime("%Y-%m-%d %H:%M", time.gmtime(r["ts"])), r["band"], f"{r['freq_hz']:.0f}", r["snr"], r["dt"], r["drift"],
-                                r["call"], r["grid"], r["power_dbm"], None if r["dist_km"] is None else round(r["dist_km"]),
+                                _cell(r["call"]), _cell(r["grid"]), r["power_dbm"], None if r["dist_km"] is None else round(r["dist_km"]),
                                 None if r["bearing"] is None else round(r["bearing"]), r.get("map", "")])
                 return self._send(200, buf.getvalue(), "text/csv; charset=utf-8", {"Content-Disposition": "attachment; filename=wsm_spots.csv"})
             return self._send(404, "not found", "text/plain; charset=utf-8")
@@ -827,13 +837,45 @@ class Handler(BaseHTTPRequestHandler):
 PUBLIC_PATHS = {"/", "/index.html", "/api/status", "/api/summary", "/api/openings", "/api/spots", "/api/waterfall", "/api/waterfall.png"}
 
 
+def _cell(v):
+    """CSV cell that a spreadsheet will not run as a formula"""
+    v = "" if v is None else str(v)
+    return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
 def _yes(v):
     return v is True or str(v).strip().lower() in ("1", "true", "yes", "on")
 
 
 class Server(ThreadingHTTPServer):
+    """one thread per connection, but at most MAX_CONN at once (the Pi has 1 GB); the rest get a short 503"""
     daemon_threads = True
     allow_reuse_address = True
+    MAX_CONN = 48
+
+    def server_activate(self):
+        super().server_activate()
+        self.slots = threading.BoundedSemaphore(self.MAX_CONN)
+
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            try:
+                request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 5\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self.slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.slots.release()
 
 
 def start(cfg, db, state, log=print):
