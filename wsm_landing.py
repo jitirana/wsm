@@ -65,6 +65,14 @@ def adsb(json_dir):
     return out
 
 
+def adsb24(path):
+    """aircraft seen in the last 24 h, from tools/wsm_adsb24.py (run by a timer): dict(aircraft_24h, window_h) or {}"""
+    d = _read_json(path)
+    if not d or time.time() - float(d.get("updated", 0)) > 600 or not isinstance(d.get("aircraft_24h"), int):
+        return {}
+    return dict(aircraft_24h=d["aircraft_24h"], window_h=d.get("window_h"))
+
+
 def _spot(s):
     if not s:
         return None
@@ -91,7 +99,8 @@ def landing(cfg, db, state):
                       best_all=_spot(sm.get("best_all")),
                       bands_24h=[dict(band=b["band"], spots=b["spots"], calls=b["calls"]) for b in sm.get("bands", [])],
                       listening=[dict(name=r.get("name"), state=r.get("state"), band=r.get("band")) for r in radios]),
-            adsb=adsb((cfg.get("adsb") or {}).get("json_dir") or "/run/readsb"),
+            adsb=dict(adsb((cfg.get("adsb") or {}).get("json_dir") or "/run/readsb"),
+                      **adsb24((cfg.get("adsb") or {}).get("count_file") or "/var/www/station/adsb24.json")),
             now=int(time.time()))
         _cache.update(t=time.time(), data=data)
         return data

@@ -76,7 +76,7 @@ footer{color:var(--mute);font-size:13px;padding:20px 0 34px;border-top:1px solid
  <p class="lead">Airliners broadcast their position, altitude and speed on 1090 MHz several times a second. This station receives those
  messages and shares them with flight-tracking networks, helping them cover the region.</p>
  <div class="grid">
-  <div class="card"><div class="k">Aircraft in range now</div><div class="v" id="aNow">–</div><div class="s" id="aNowS">&nbsp;</div></div>
+  <div class="card"><div class="k" id="aNowK">Aircraft in range now</div><div class="v" id="aNow">–</div><div class="s" id="aNowS">&nbsp;</div></div>
   <div class="card"><div class="k">Messages per second</div><div class="v" id="aRate">–</div><div class="s">received from aircraft</div></div>
   <div class="card"><div class="k">Farthest aircraft now</div><div class="v" id="aFar">–</div><div class="s" id="aFarS">&nbsp;</div></div>
  </div>
@@ -142,7 +142,8 @@ async function load(){
  let d;
  try{d=await getJSON("/api/landing");offline=false}            // WSM is running and serves the page
  catch(e){try{d=await getJSON("/landing.json");offline=!!d.wsm_offline}catch(e2){$("liveTxt").textContent="station data not available right now";return}
-  if(!offline||!(d.adsb||{}).ok){try{d.adsb=await adsbDirect()}catch(e3){d.adsb={ok:false}}}}
+  if(!offline||!(d.adsb||{}).ok){try{d.adsb=await adsbDirect()}catch(e3){d.adsb={ok:false}}}
+  try{const c=await getJSON("/adsb24.json");if(Date.now()/1000-(+c.updated||0)<600){d.adsb.aircraft_24h=c.aircraft_24h;d.adsb.window_h=c.window_h}}catch(e4){}}
  if(!filled)fillStatic(d);
  const w=d.wspr||{},on=(w.listening||[]).find(r=>r.state==="listening");
  $("wOff").classList.toggle("hide",!offline);
@@ -161,7 +162,10 @@ async function load(){
  $("wBands").innerHTML=(w.bands_24h||[]).filter(x=>x.calls>0).map(x=>`<span class="chip">${esc(x.band)}: ${x.calls} station${x.calls===1?"":"s"}</span>`).join("");
  const ad=d.adsb||{};
  if(!ad.ok){$("aNow").textContent="–";$("aNowS").textContent="receiver offline";$("aRate").textContent="–";$("aFar").textContent="–";$("aFarS").textContent=""}
- else{$("aNow").textContent=ad.aircraft;$("aNowS").textContent=ad.with_pos+" with position";
+ else{const has24=typeof ad.aircraft_24h==="number";
+  $("aNowK").textContent=has24?(ad.window_h!=null&&ad.window_h<23.5?`Aircraft seen, last ${Math.max(1,Math.round(ad.window_h))} h`:"Aircraft seen, last 24 h"):"Aircraft in range now";
+  $("aNow").textContent=has24?ad.aircraft_24h.toLocaleString("en-US"):ad.aircraft;
+  $("aNowS").textContent=has24?`${ad.aircraft} in range now · ${ad.with_pos} with position`:ad.with_pos+" with position";
   $("aRate").textContent=ad.msg_rate==null?"…":ad.msg_rate.toFixed(ad.msg_rate<10?1:0);
   $("aFar").textContent=km(ad.farthest_km);
   const f=ad.farthest;$("aFarS").textContent=f?[f.flight,f.alt_ft!=null?f.alt_ft.toLocaleString("en-US")+" ft":null].filter(Boolean).join(" · "):""}}

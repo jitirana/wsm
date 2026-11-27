@@ -90,6 +90,11 @@ enable `deploy/lighttpd-station.conf` for the landing host name and point the tu
 shows the ADS-B numbers live from `/tar1090/data/aircraft.json`. When WSM runs again, point the tunnel back at WSM: the
 page uses `/api/landing` again by itself.
 
+**Aircraft seen in the last 24 h.** The first ADS-B card counts the different aircraft (ICAO addresses) heard in the last
+24 hours. readsb does not keep that number, so `tools/wsm_adsb24.py` runs once a minute (`deploy/wsm-adsb24.service` and
+`.timer`), reads `/run/readsb/aircraft.json` and writes `/var/www/station/adsb24.json` (`adsb.count_file` in `wsm.yaml`
+for WSM). Right after the first start the card says "last N h" until a whole day has been counted.
+
 ## Radio
 
 `radios` is a list; WSM is tested with one SDRplay RSP2.

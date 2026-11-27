@@ -1,0 +1,11 @@
+# /etc/systemd/system/wsm-adsb24.timer  (see wsm-adsb24.service)
+[Unit]
+Description=WSM - count aircraft for the landing page every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

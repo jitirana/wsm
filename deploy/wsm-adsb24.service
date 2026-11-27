@@ -1,0 +1,13 @@
+# /etc/systemd/system/wsm-adsb24.service  (run by wsm-adsb24.timer once a minute)
+# Counts the different aircraft heard in the last 24 h for the station landing page (tools/wsm_adsb24.py).
+# Install:  sudo cp deploy/wsm-adsb24.service deploy/wsm-adsb24.timer /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now wsm-adsb24.timer
+[Unit]
+Description=WSM - aircraft seen in the last 24 h (landing page)
+After=readsb.service
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/wsm/tools/wsm_adsb24.py
+Nice=10
