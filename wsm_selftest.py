@@ -275,6 +275,17 @@ assert _lj["wspr"]["spots_24h"] is None and _lj["adsb"] == {"ok": False} and _lj
 assert _ls.snapshot(_lc, db, online=True)["wsm_offline"] is False
 _sh = open(os.path.join(here, "static", "station.html")).read()
 assert 'id="wOff"' in _sh and "/landing.json" in _sh and "/tar1090/data/aircraft.json" in _sh
+import wsm_adsb24 as _a24, wsm_landing as _wl                   # aircraft seen in the last 24 h
+_st = {}; _t0 = 1_800_000_000
+_ac = lambda now, hexes: dict(now=now, aircraft=[dict(hex=h, seen=1) for h in hexes] + [dict(hex="~1234", seen=1), dict(hex="old1", seen=300)])
+assert _a24.update(_st, _ac(_t0, ["a1", "a2"]), _t0) == (2, 0.0)
+assert _a24.update(_st, _ac(_t0 + 3600, ["a2", "a3"]), _t0 + 3600) == (3, 1.0)                     # same aircraft counted once
+assert _a24.update(_st, _ac(_t0, ["zz"]), _t0 + 3600 + 200) == (3, 1.1)                            # stale aircraft.json: ignored
+assert _a24.update(_st, None, _t0 + 86400 + 1800) == (2, 24.0)                                     # a1 forgotten after 24 h
+_cf = os.path.join(tmp, "adsb24.json"); json.dump(dict(aircraft_24h=7, window_h=5.2, updated=int(time.time())), open(_cf, "w"))
+assert _wl.adsb24(_cf) == dict(aircraft_24h=7, window_h=5.2) and _wl.adsb24(os.path.join(tmp, "none.json")) == {}
+json.dump(dict(aircraft_24h=7, window_h=5.2, updated=int(time.time()) - 3600), open(_cf, "w")); assert _wl.adsb24(_cf) == {}
+assert 'id="aNowK"' in _sh and "/adsb24.json" in open(os.path.join(here, "static", "station.html")).read()
 print("landing page without WSM: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):

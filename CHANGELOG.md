@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Landing page: the first ADS-B card shows the different aircraft heard in the last 24 h (with "N in range now" below).
+  `tools/wsm_adsb24.py`, run every minute by `deploy/wsm-adsb24.timer`, keeps the count in `adsb24.json`; both the
+  lighttpd copy and `/api/landing` (WSM) read it.
 - Station landing page without WSM: `tools/wsm_landing_snapshot.py` writes a static copy (page, favicon, `landing.json` with
   the texts and the best DX ever) for lighttpd (`deploy/lighttpd-station.conf`, one host name only). When `/api/landing` does
   not answer, the page reads `landing.json`, says that the WSPR monitor is temporarily unavailable, hides the 24 h WSPR
