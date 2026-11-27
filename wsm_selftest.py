@@ -266,6 +266,16 @@ for _f in ("station.html", "about.html"):
 _hs3.shutdown(); _hs3.server_close()
 assert wsm_web.script_hashes("<script>a</script><script src=x></script>") == "'sha256-ypeBEsobvcr6wjGzmiPcTaeG7/gUfE5yuYB3ha/uSLs='"
 print("web limits, login and log out: ok")
+sys.path.insert(0, os.path.join(here, "tools")); import wsm_landing_snapshot as _ls   # landing page without WSM (lighttpd copy)
+_lc = copy.deepcopy(cfg); _lc["landing"] = dict(enabled=True, title="T", about="A", equipment=["E"], monitor_url="https://m/")
+_out = os.path.join(tmp, "station_static"); _ld = _ls.publish(_lc, _out)
+assert sorted(os.listdir(_out)) == ["favicon.svg", "landing.json", "station.html"] and _ld["wsm_offline"] is True
+_lj = json.load(open(os.path.join(_out, "landing.json")))
+assert _lj["wspr"]["spots_24h"] is None and _lj["adsb"] == {"ok": False} and _lj["about"] == "A" and "token" not in json.dumps(_lj)
+assert _ls.snapshot(_lc, db, online=True)["wsm_offline"] is False
+_sh = open(os.path.join(here, "static", "station.html")).read()
+assert 'id="wOff"' in _sh and "/landing.json" in _sh and "/tar1090/data/aircraft.json" in _sh
+print("landing page without WSM: ok")
 print("TMP", tmp, "PORT", cfg["web"]["port"])
 if os.environ.get("WSM_KEEP"):
     time.sleep(int(os.environ["WSM_KEEP"]))

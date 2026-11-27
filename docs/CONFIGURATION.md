@@ -82,6 +82,14 @@ adsb:
 The page refreshes every 30 s from `/api/landing` (cached for 30 s on the server). The ADS-B numbers (aircraft now, messages
 per second, farthest aircraft) need readsb on the same computer; without it that section shows "receiver offline".
 
+**While WSM is switched off** (for example only ADS-B running), lighttpd can serve the same page: run
+`python3 tools/wsm_landing_snapshot.py -c ~/wsm/wsm.yaml` (writes `station.html`, `favicon.svg` and `landing.json` into
+`/var/www/station`; create the folder once with `sudo mkdir -p /var/www/station && sudo chown pi: /var/www/station`),
+enable `deploy/lighttpd-station.conf` for the landing host name and point the tunnel for that host name at lighttpd
+(port 80). The page then says that the WSPR monitor is temporarily unavailable, keeps the texts and the best DX ever, and
+shows the ADS-B numbers live from `/tar1090/data/aircraft.json`. When WSM runs again, point the tunnel back at WSM: the
+page uses `/api/landing` again by itself.
+
 ## Radio
 
 `radios` is a list; WSM is tested with one SDRplay RSP2.

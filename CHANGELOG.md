@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Station landing page without WSM: `tools/wsm_landing_snapshot.py` writes a static copy (page, favicon, `landing.json` with
+  the texts and the best DX ever) for lighttpd (`deploy/lighttpd-station.conf`, one host name only). When `/api/landing` does
+  not answer, the page reads `landing.json`, says that the WSPR monitor is temporarily unavailable, hides the 24 h WSPR
+  cards and the monitor buttons, and reads the ADS-B numbers live from tar1090's `/tar1090/data/aircraft.json`.
 - Content-Security-Policy: scripts no longer run inline unless they are the page's own `<script>` blocks, allowed one by one
   by their SHA-256 (computed when the page is served), so an injected `<script>` or `onclick=` is refused by the browser.
   Also `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, `frame-ancestors 'none'`, `connect-src 'self'`.

@@ -43,6 +43,8 @@ ul{margin:6px 0 0;padding-left:20px}li{margin:3px 0}
 footer{color:var(--mute);font-size:13px;padding:20px 0 34px;border-top:1px solid var(--line);margin-top:30px}
 .muted{color:var(--mute)}
 .hide{display:none}
+.notice{background:var(--card);border:1px solid var(--warn);border-left:5px solid var(--warn);border-radius:10px;padding:10px 14px;margin:0 0 14px;max-width:760px}
+.notice b{color:var(--warn)}
 </style>
 </head><body>
 <div class="hero"><div class="wrap">
@@ -57,10 +59,12 @@ footer{color:var(--mute);font-size:13px;padding:20px 0 34px;border-top:1px solid
  <p class="lead">WSPR ("whisper") is a radio mode for testing propagation: stations around the world send a tiny beacon, often well under
  1 watt, every few minutes, and receivers like this one decode it even when it is far below the noise. Here is what this station
  heard in the last 24 hours.</p>
+ <p class="notice hide" id="wOff"><b>The WSPR monitor is temporarily unavailable.</b> The receiver is switched off for maintenance;
+ the WSPR numbers come back when it is on the air again. Aircraft tracking below keeps working.</p>
  <div class="grid">
-  <div class="card"><div class="k">Transmissions decoded</div><div class="v" id="wSpots">–</div><div class="s">last 24 hours</div></div>
-  <div class="card"><div class="k">Stations heard</div><div class="v" id="wCalls">–</div><div class="s">different callsigns, last 24 hours</div></div>
-  <div class="card"><div class="k">Farthest today</div><div class="v" id="wBest">–</div><div class="s" id="wBestS">&nbsp;</div></div>
+  <div class="card c24"><div class="k">Transmissions decoded</div><div class="v" id="wSpots">–</div><div class="s">last 24 hours</div></div>
+  <div class="card c24"><div class="k">Stations heard</div><div class="v" id="wCalls">–</div><div class="s">different callsigns, last 24 hours</div></div>
+  <div class="card c24"><div class="k">Farthest today</div><div class="v" id="wBest">–</div><div class="s" id="wBestS">&nbsp;</div></div>
   <div class="card"><div class="k">Farthest ever</div><div class="v" id="wAll">–</div><div class="s" id="wAllS">&nbsp;</div></div>
  </div>
  <div class="chips" id="wBands"></div>
@@ -100,14 +104,31 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const km=v=>v==null?"–":Math.round(v).toLocaleString("en-US")+" km";
 const safeUrl=u=>/^https?:\/\//i.test(String(u||""))?String(u):"#";
-let filled=false;
+let filled=false,offline=false;
+async function getJSON(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error(r.status);return r.json()}
+// ADS-B straight from the files readsb writes, published by tar1090 (used when WSM is not running)
+let rate={t:null,n:null,v:null};
+function dist(a,b,c,d){const r=Math.PI/180,x=Math.sin((c-a)*r/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin((d-b)*r/2)**2;return 12742*Math.asin(Math.sqrt(x))}
+async function adsbDirect(){
+ const ac=await getJSON("/tar1090/data/aircraft.json");
+ if(!ac||Date.now()/1000-(+ac.now||0)>120)return {ok:false};
+ let rx={},st={};try{rx=await getJSON("/tar1090/data/receiver.json")}catch(e){}try{st=await getJSON("/tar1090/data/stats.json")}catch(e){}
+ const seen=(ac.aircraft||[]).filter(a=>(+a.seen||999)<60),pos=seen.filter(a=>a.lat!=null&&(+a.seen_pos||999)<60);
+ let far=null,fk=null;
+ for(const a of pos){const k=a.r_dst!=null?a.r_dst*1.852:(rx.lat!=null?dist(rx.lat,rx.lon,a.lat,a.lon):null);if(k!=null&&(fk==null||k>fk)){fk=k;far=a}}
+ const now=+ac.now,n=ac.messages;
+ if(typeof n==="number"){if(rate.t!=null&&now>rate.t&&n>=rate.n)rate.v=(n-rate.n)/(now-rate.t);rate.t=now;rate.n=n}
+ const l1=(st.last1min||{}),m1=l1.messages_valid!=null?l1.messages_valid:l1.messages;if(typeof m1==="number"&&m1>0)rate.v=m1/60;
+ const out={ok:true,aircraft:seen.length,with_pos:pos.length,msg_rate:rate.v==null?null:Math.round(rate.v*10)/10,farthest_km:fk==null?null:Math.round(fk)};
+ if(far){const alt=far.alt_baro;out.farthest={flight:(far.flight||"").trim()||null,alt_ft:typeof alt==="number"?alt:null}}
+ return out}
 function fillStatic(d){
  const st=d.station;
  document.title=d.title||st.callsign;
  $("call").textContent=st.callsign;
  $("sub").textContent=(d.title&&d.title!==st.callsign?d.title+" · ":"")+"Maidenhead locator "+st.grid;
  const mon=d.monitor_url;
- if(mon){$("monBtn").href=mon;$("aboutBtn").href=mon.replace(/\/?$/,"/")+"about"}else{$("monBtn").classList.add("hide");$("aboutBtn").classList.add("hide")}
+ if(mon&&!offline){$("monBtn").href=mon;$("aboutBtn").href=mon.replace(/\/?$/,"/")+"about"}else{$("monBtn").classList.add("hide");$("aboutBtn").classList.add("hide")}
  if(d.adsb_url){$("adsbBtn").href=d.adsb_url;$("adsbBtn").classList.remove("hide")}
  $("about").textContent=d.about||"";
  $("links").innerHTML=(d.links||[]).map(l=>`<a href="${esc(safeUrl(l.url))}" target="_blank" rel="noopener">${esc(l.name||l.url)}</a>`).join("");
@@ -118,11 +139,19 @@ function fillStatic(d){
   $("projects").innerHTML=pr.map(p=>`<div class="card proj"><h3>${esc(p.name)}</h3><p>${esc(p.text||"")}</p>${p.url?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${esc(p.link||"Open")} →</a>`:""}</div>`).join("")}
  filled=true}
 async function load(){
- let d;try{d=await fetch("/api/landing",{cache:"no-store"}).then(r=>r.json())}catch(e){$("liveTxt").textContent="station data not available right now";return}
+ let d;
+ try{d=await getJSON("/api/landing");offline=false}            // WSM is running and serves the page
+ catch(e){try{d=await getJSON("/landing.json");offline=!!d.wsm_offline}catch(e2){$("liveTxt").textContent="station data not available right now";return}
+  if(!offline||!(d.adsb||{}).ok){try{d.adsb=await adsbDirect()}catch(e3){d.adsb={ok:false}}}}
  if(!filled)fillStatic(d);
  const w=d.wspr||{},on=(w.listening||[]).find(r=>r.state==="listening");
- $("dot").classList.toggle("off",!on);
- $("liveTxt").textContent=on?`On the air · listening to WSPR on ${on.band}`:"WSPR receiver idle";
+ $("wOff").classList.toggle("hide",!offline);
+ for(const c of document.querySelectorAll(".c24"))c.classList.toggle("hide",offline);
+ $("wBands").classList.toggle("hide",offline);
+ if(offline){$("dot").classList.toggle("off",!(d.adsb||{}).ok);
+  $("liveTxt").textContent=((d.adsb||{}).ok?"Tracking aircraft":"Station")+" · WSPR monitor temporarily unavailable"}
+ else{$("dot").classList.toggle("off",!on);
+  $("liveTxt").textContent=on?`On the air · listening to WSPR on ${on.band}`:"WSPR receiver idle"}
  $("wSpots").textContent=w.spots_24h==null?"–":w.spots_24h.toLocaleString("en-US");
  $("wCalls").textContent=w.stations_24h==null?"–":w.stations_24h;
  const b=w.best_24h,a=w.best_all;
