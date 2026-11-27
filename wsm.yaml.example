@@ -14,7 +14,9 @@ web:
   enabled: true
   host: 127.0.0.1               # keep it local; publish it with a tunnel (e.g. cloudflared)
   port: 8091
-  token: ""                     # if set, open  http://host:port/?key=TOKEN  once (a cookie remembers it). Do not share it.
+  token: ""                     # if set, log in at  http://host:port/login  (a cookie remembers it for 30 days). Do not share it.
+                                # make one with:  openssl rand -hex 16
+  # url_key: no                 # yes: also accept old links  /?key=TOKEN  (the key then shows up in history and logs)
 
 radios:
   - name: rsp2

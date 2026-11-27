@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Login and log out: a `/login` form asks for the key and sets the session cookie, so the key no longer travels in the
+  address. The page header has **log out** (this browser) and **log out everywhere** (a new session: every old cookie stops
+  working). The session comes from the token and a random value in `data/web_session`. Old `/?key=TOKEN` links lead to the
+  form; `web.url_key: yes` accepts them again. Scripts use the `X-WSM-Key` header and get the answer directly. Existing
+  cookies end with this update: log in once at `/login`. In private mode (`public: no`) the page itself opens the form.
 - Web server limits: a connection that stays silent for 15 s is closed (request line, headers, body or idle keep-alive),
   and at most 48 connections are served at once (the next ones get a short 503), so stuck clients cannot pile up threads
   on the Pi. After too many wrong keys only key attempts are refused (429); the public view and a valid cookie keep
